@@ -122,16 +122,15 @@ struct FeedScreen: View {
         }
     }
 
-    /// Under the last card: Load more while more can load (alone, no sentence); once nothing more
-    /// can, the end mark (design §2), 48 below the last card.
+    /// Under the last card, 48 below it: the way on while more can load (alone, no sentence); once
+    /// nothing more can, the end mark (design §2) in the same place.
     @ViewBuilder private func footer(_ model: FeedModel) -> some View {
         if model.canLoadMore {
-            OrganicButton(L10n.Home.moreBtn, variant: .tonal) {
+            FeedMoreButton(loading: model.isLoadingMore) {
                 Task { await model.loadMore() }
             }
-            .loading(model.isLoadingMore)
             .frame(maxWidth: .infinity)
-            .padding(.top, 64)
+            .padding(.top, 48)
             .padding(.horizontal, 20)
         } else if model.latestVisible {
             FeedEndMark()
@@ -158,6 +157,32 @@ struct FeedEndMark: View {
                     color: UIColor(Tokens.textMuted), alignment: .center)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+/// The feed's way on (the web's FeedMore): "Load more" alone, in the tonal label's ink with no face
+/// of its own — not a form's button — the press washing a wobbly squircle as a bare glyph's does.
+/// While the next page is on its way the pen loop draws itself before the label (as a button's
+/// does) and taps do nothing.
+struct FeedMoreButton: View {
+    let loading: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if loading { SketchLoader(size: 15, color: Tokens.buttonOnTonal) }
+                Text(L10n.Home.moreBtn)
+                    .font(AppFonts.body(14, weight: .semibold))
+                    .foregroundStyle(Tokens.buttonOnTonal)
+            }
+            .padding(.horizontal, 16)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(OrganicPressStyle(inset: 0))
+        .disabled(loading)
+        .accessibilityLabel(loading ? L10n.Home.moreLoading : L10n.Home.moreBtn)
     }
 }
 

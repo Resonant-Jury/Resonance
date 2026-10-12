@@ -20,7 +20,8 @@ struct NotificationsScreen: View {
                     store.resume()
                 }
             } else if !store.loaded {
-                SketchLoader(size: 48).frame(maxWidth: .infinity).padding(.top, 60)
+                // Still reading: the rows' own shapes between the same wavy rules, not a loader.
+                NotificationsSkeleton().readableColumn()
             } else {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(store.items.enumerated()), id: \.element.id) { i, item in
@@ -77,6 +78,28 @@ struct NotificationsScreen: View {
         case "invite_accepted", "message", "resonance": return item.fromHandle.map { Route.thread(handle: $0, uid: item.fromUserId, note: nil) }
         default: return nil
         }
+    }
+}
+
+/// The bell's rows still on their way: six of a row's measures — who did what, and under two of
+/// them a note's words — parted by the list's own wavy rules. Android's NotificationsSkeleton.
+private struct NotificationsSkeleton: View {
+    private static let lines: [CGFloat] = [0.82, 0.64, 0.9, 0.58, 0.76, 0.7]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(0..<6, id: \.self) { i in
+                if i > 0 { WavyDivider(seed: Double(29 + i * 7)).padding(.horizontal, 20) }
+                VStack(alignment: .leading, spacing: 9) {
+                    SkeletonBlock(fraction: Self.lines[i], height: 14)
+                    if i == 1 || i == 3 { SkeletonBlock(fraction: 0.46, height: 12) }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 15)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.Home.moreLoading)
     }
 }
 

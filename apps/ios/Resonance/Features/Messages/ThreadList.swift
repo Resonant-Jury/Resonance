@@ -199,6 +199,54 @@ extension MessageList {
     }
 }
 
+/// A thread whose messages are still on their way (opened from a bell or a push, before the first
+/// read): a few bubbles in the shimmer, theirs on the left with a face under each run and yours on
+/// the right, resting on the foot as the newest messages do. It shows only after a moment, so a
+/// thread the cache answers at once doesn't flash it. Android's ThreadSkeleton.
+struct ThreadSkeleton: View {
+    private struct Bubble { let mine: Bool; let width: CGFloat; let height: CGFloat }
+    /// Oldest first; a change of side starts a new run.
+    private static let bubbles = [
+        Bubble(mine: false, width: 168, height: 40), Bubble(mine: false, width: 120, height: 40),
+        Bubble(mine: true, width: 200, height: 58), Bubble(mine: true, width: 96, height: 40),
+        Bubble(mine: false, width: 220, height: 58),
+        Bubble(mine: true, width: 140, height: 40),
+    ]
+    @State private var shown = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(Self.bubbles.enumerated()), id: \.offset) { i, bubble in
+                let runEnds = i == Self.bubbles.count - 1 || Self.bubbles[i + 1].mine != bubble.mine
+                HStack(alignment: .bottom, spacing: faceGap) {
+                    if bubble.mine {
+                        Spacer(minLength: 0)
+                    } else if runEnds {
+                        SkeletonBlock(width: face, circle: true)
+                    } else {
+                        Color.clear.frame(width: face, height: 1)
+                    }
+                    SkeletonBlock(width: bubble.width, height: bubble.height, radius: 18)
+                    if !bubble.mine { Spacer(minLength: 0) }
+                }
+                .padding(.top, i == 0 ? 0 : Self.bubbles[i - 1].mine == bubble.mine ? runGap + 2 : betweenRuns + 4)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10 + edgeFade)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .opacity(shown ? 1 : 0)
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.Home.moreLoading)
+        .task {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.2)) { shown = true }
+        }
+    }
+}
+
 /// The thread's edge over its foot: no rule (it would be busy) but a narrow band of the paper fading
 /// up into the messages, eased so neither of its own edges shows — the foot dissolving upward, not a
 /// shadow. It catches no touch; the pill, the search results and the long-press layer lie over it.

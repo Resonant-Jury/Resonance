@@ -2,6 +2,7 @@ package com.resonance.app.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
@@ -28,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -85,6 +87,7 @@ import com.resonance.design.REPLY_OVERLAP
 import com.resonance.design.SharedCardSection
 import com.resonance.design.BubblePictureBleed
 import com.resonance.design.SharedCardSkeleton
+import com.resonance.design.Skeleton
 import com.resonance.design.SketchLoader
 import com.resonance.design.WobRectShape
 import com.resonance.design.fade
@@ -293,6 +296,59 @@ internal fun MessageList(
         }
     }
 }
+
+/**
+ * A thread whose messages are still on their way (opened from a bell or a push, before the first
+ * read): a few bubbles in the shimmer, theirs on the left with a face under each run and yours on
+ * the right, resting on the foot as the newest messages do. It shows only after a moment, so a
+ * thread the cache answers at once doesn't flash it. iOS's ThreadSkeleton.
+ */
+@Composable
+internal fun ThreadSkeleton(modifier: Modifier = Modifier) {
+    val shown by produceState(false) {
+        delay(SKELETON_DELAY_MILLIS)
+        value = true
+    }
+    val alpha by animateFloatAsState(if (shown) 1f else 0f, tween(200), label = "threadSkeleton")
+    Column(
+        modifier
+            .fillMaxSize()
+            .graphicsLayer { this.alpha = alpha }
+            .semantics { contentDescription = L10n.Home.moreLoading }
+            .padding(start = 16.dp, end = 16.dp, bottom = 10.dp + ComposerFadeHeight),
+        verticalArrangement = Arrangement.Bottom,
+    ) {
+        SKELETON_BUBBLES.forEachIndexed { i, (mine, width, height) ->
+            val runEnds = i == SKELETON_BUBBLES.lastIndex || SKELETON_BUBBLES[i + 1].first != mine
+            val gap = when {
+                i == 0 -> 0.dp
+                SKELETON_BUBBLES[i - 1].first == mine -> RUN_GAP + 2.dp
+                else -> BETWEEN_RUNS + 4.dp
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(top = gap),
+                horizontalArrangement = if (mine) Arrangement.End else Arrangement.spacedBy(FACE_GAP),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                if (!mine) {
+                    if (runEnds) Skeleton(height = FACE, circle = true) else Spacer(Modifier.size(FACE, 1.dp))
+                }
+                Skeleton(Modifier.width(width.dp), height = height.dp, radius = 18.dp)
+            }
+        }
+    }
+}
+
+/** The skeleton's bubbles, oldest first — whether yours, how wide, how tall; a change of side starts a run. */
+private val SKELETON_BUBBLES = listOf(
+    Triple(false, 168, 40), Triple(false, 120, 40),
+    Triple(true, 200, 58), Triple(true, 96, 40),
+    Triple(false, 220, 58),
+    Triple(true, 140, 40),
+)
+
+/** How long a thread waits for its first read before its skeleton shows. */
+private const val SKELETON_DELAY_MILLIS = 150L
 
 /** How far up the thread is scrolled (in messages) before "latest messages" offers the way back down. */
 private const val FAR_UP_ITEMS = 6

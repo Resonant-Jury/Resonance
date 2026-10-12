@@ -25,7 +25,7 @@ import com.resonance.design.AppFonts
 import com.resonance.design.EmptyAction
 import com.resonance.design.OrganicEmptyState
 import com.resonance.design.plainClickable
-import com.resonance.design.SketchLoader
+import com.resonance.design.Skeleton
 import com.resonance.design.WavyDivider
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
@@ -46,7 +46,8 @@ fun NotificationsScreen(session: Session, open: (Route) -> Unit) {
             !loaded && failed -> item {
                 OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { session.notifications.resume() }, action = EmptyAction.Outline)
             }
-            !loaded -> item { Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { SketchLoader(48.dp) } }
+            // Still reading: the rows' own shapes between the same wavy rules, not a loader.
+            !loaded -> item(key = "skeleton") { NotificationsSkeleton() }
             items.isEmpty() -> item {
                 OrganicEmptyState(
                     L10n.App.Notifications.empty, title = L10n.App.Notifications.emptyTitle, icon = IconName.Bell, seed = 37.0,
@@ -58,6 +59,24 @@ fun NotificationsScreen(session: Session, open: (Route) -> Unit) {
                     if (i > 0) WavyDivider(seed = 29.0 + i * 7)
                     NotificationRow(item, session, open)
                 }
+            }
+        }
+    }
+}
+
+/**
+ * The bell's rows still on their way: six of a row's measures — who did what, and under two of them
+ * a note's words — parted by the list's own wavy rules. iOS's NotificationsSkeleton.
+ */
+@Composable
+private fun NotificationsSkeleton() {
+    val lines = listOf(0.82f, 0.64f, 0.9f, 0.58f, 0.76f, 0.7f)
+    Column(Modifier.readableColumn().padding(horizontal = 20.dp).semantics { contentDescription = L10n.Home.moreLoading }) {
+        for (i in lines.indices) {
+            if (i > 0) WavyDivider(seed = 29.0 + i * 7)
+            Column(Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Skeleton(Modifier.fillMaxWidth(lines[i]), height = 14.dp)
+                if (i == 1 || i == 3) Skeleton(Modifier.fillMaxWidth(0.46f), height = 12.dp)
             }
         }
     }

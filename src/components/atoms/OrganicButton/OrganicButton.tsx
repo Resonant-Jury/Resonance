@@ -21,9 +21,11 @@ import styles from './OrganicButton.module.css';
  *                  Confirm, the page's one call to action
  *  - `tonal`       everything beside it: a soft peach face with a deep
  *                  terracotta label — a secondary action (Share your story,
- *                  Sign out, Retry), Cancel / Keep / Close, Download, Load
- *                  more, Unblock. `text` and `textAccent` (the names those
- *                  call sites carry) wear it too.
+ *                  Sign out, Retry), Cancel / Keep / Close, Download,
+ *                  Unblock. `text` and `textAccent` (the names those call
+ *                  sites carry) wear it too. The feed's Load more is not a
+ *                  button of this kind: its words alone, in the tonal
+ *                  label's ink (home's FeedMore, the apps' FeedMoreButton).
  *  - `danger`      solid in red: the final confirm of what can't be undone
  *  - `dangerTonal` the peach's red twin: a button that opens a destructive
  *                  flow (Settings' Delete account), whose dialog then asks

@@ -26,6 +26,9 @@ struct ConversationsScreen: View {
                     OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {
                         store.resume()
                     }
+                } else if !store.loaded {
+                    // Still reading: the rows' own shapes, so nothing jumps when they arrive.
+                    ConversationsSkeleton()
                 }
                 ForEach(store.conversations) { convo in
                     ConversationRow(person: convo.other, preview: preview(convo), time: convo.sentAt.map(Self.time),
@@ -122,6 +125,33 @@ private struct ConversationRow: View {
             .padding(.vertical, 12)
             .padding(.horizontal, 14)
             .contentShape(Rectangle())
+    }
+}
+
+/// The conversations still on their way: six rows in a row's measures — the 40 face, the pen name
+/// over the last line, the time at the end — in the warm shimmer. Android's ConversationsSkeleton.
+private struct ConversationsSkeleton: View {
+    private static let names: [CGFloat] = [96, 128, 80, 112, 88, 120]
+    private static let lines: [CGFloat] = [0.78, 0.56, 0.7, 0.48, 0.64, 0.52]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(0..<6, id: \.self) { i in
+                HStack(spacing: 12) {
+                    SkeletonBlock(width: 40, circle: true)
+                    VStack(alignment: .leading, spacing: 8) {
+                        SkeletonBlock(width: Self.names[i], height: 13)
+                        SkeletonBlock(fraction: Self.lines[i], height: 12)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    SkeletonBlock(width: 30, height: 10)
+                }
+                .padding(.vertical, 12)
+                .padding(.horizontal, 14)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.Home.moreLoading)
     }
 }
 

@@ -27,9 +27,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.resonance.app.Session
 import com.resonance.design.brandBarHeight
-import com.resonance.design.ButtonVariant
 import com.resonance.design.CardPalette
 import com.resonance.design.FeedEndMark
+import com.resonance.design.FeedMoreButton
 import com.resonance.design.EmptyAction
 import com.resonance.design.HeaderEdgeHeight
 import com.resonance.design.OrganicButton
@@ -130,11 +130,9 @@ fun FeedScreen(session: Session, open: (Route) -> Unit) {
                     storyCards(cards, open, firstUnderBar = state.refreshFailure == null, layout = layout)
                     item {
                         Column(Modifier.fillMaxWidth().padding(top = 48.dp, start = 20.dp, end = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            // While more can load, only the button; the end mark once nothing more can.
+                            // While more can load, only the way on (no sentence); the end mark in its place once nothing more can.
                             if (state.canLoadMore) {
-                                OrganicButton(L10n.Home.moreBtn, variant = ButtonVariant.Tonal, loading = state.loadingMore) {
-                                    feed.loadMore()
-                                }
+                                FeedMoreButton(state.loadingMore) { feed.loadMore() }
                             } else if (state.latestVisible) {
                                 FeedEndMark(L10n.Home.feedEnd)
                             }

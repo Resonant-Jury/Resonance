@@ -8,6 +8,9 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.foundation.layout.width
+import com.resonance.design.Skeleton
 import com.resonance.design.readableColumn
 
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -88,6 +91,9 @@ fun ConversationsScreen(session: Session, open: (Route) -> Unit) {
         } else if (!state.loaded && state.failed) {
             // Nothing read, and a listener failed: a retry rather than an empty page.
             item { OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { session.conversations.resume() }, action = EmptyAction.Outline) }
+        } else if (!state.loaded) {
+            // Still reading: the rows' own shapes, so nothing jumps when they arrive.
+            item(key = "skeleton") { ConversationsSkeleton() }
         }
         items(state.conversations, key = { "c:${it.id}" }) { convo ->
             ConversationRow(convo.other, preview(convo), convo.sentAt?.let(::rowTime), convo.unread, open, chosen = chosen?.isWith(convo.other) == true)
@@ -185,6 +191,32 @@ private fun ConversationRow(person: Person, preview: String, time: String?, unre
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
             if (time != null) BasicText(time, maxLines = 1, style = AppFonts.body(11f, lineHeight = 1.3f, color = Tokens.TextMuted))
             if (unread > 0) CountBadge(unread)
+        }
+    }
+}
+
+/**
+ * The conversations still on their way: six rows in a row's measures — the 40 face, the pen name
+ * over the last line, the time at the end — in the warm shimmer. iOS's ConversationsSkeleton.
+ */
+@Composable
+private fun ConversationsSkeleton() {
+    val names = listOf(96, 128, 80, 112, 88, 120)
+    val lines = listOf(0.78f, 0.56f, 0.7f, 0.48f, 0.64f, 0.52f)
+    Column(Modifier.readableColumn().padding(start = 16.dp, end = 18.dp).semantics { contentDescription = L10n.Home.moreLoading }) {
+        for (i in 0 until 6) {
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Skeleton(height = 40.dp, circle = true)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Skeleton(Modifier.width(names[i].dp), height = 13.dp)
+                    Skeleton(Modifier.fillMaxWidth(lines[i]), height = 12.dp)
+                }
+                Skeleton(Modifier.width(30.dp), height = 10.dp)
+            }
         }
     }
 }

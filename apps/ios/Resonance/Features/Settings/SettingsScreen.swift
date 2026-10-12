@@ -610,7 +610,23 @@ private struct BlockedListContent: View {
                     row(person)
                 }
             } else {
-                SketchLoader(size: 44).frame(maxWidth: .infinity).padding(.vertical, 18)
+                // Still reading: two rows' shapes, the rule between them as the list has.
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(0..<2, id: \.self) { i in
+                        if i > 0 { WavyDivider(seed: Double(100 + i * 7)).padding(.vertical, 2) }
+                        HStack(spacing: 12) {
+                            SkeletonBlock(width: 36, circle: true)
+                            VStack(alignment: .leading, spacing: 7) {
+                                SkeletonBlock(width: i == 0 ? 112 : 88, height: 14)
+                                SkeletonBlock(width: 72, height: 11)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.vertical, 10)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(L10n.Home.moreLoading)
             }
             ModalCloseButton(L10n.Safety.BlockedList.close, action: onClose)
         }

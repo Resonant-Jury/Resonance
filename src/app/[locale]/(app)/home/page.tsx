@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { CardLinkGrid } from '@/components/molecules/CardLinkGrid/CardLinkGrid';
 import { FeedSkeleton } from '@/components/atoms/CardSkeleton/CardSkeleton';
+import { ButtonLoader } from '@/components/atoms/ButtonLoader/ButtonLoader';
 import { Icon } from '@/components/atoms/Icon';
 import { OrganicButton } from '@/components/atoms/OrganicButton/OrganicButton';
 import { Link } from '@/i18n/navigation';
@@ -106,13 +107,11 @@ export default function HomeFeedPage() {
 
           <footer className={styles.foot}>
             {(!latestVisible || hasMore) ? (
-              <OrganicButton
-                variant="textAccent"
+              <FeedMore
+                label={t('moreBtn')}
+                loading={!!isLoadingMore}
                 onClick={() => (latestVisible ? loadMore() : setShowLatest(true))}
-                loading={isLoadingMore}
-              >
-                {t('moreBtn')}
-              </OrganicButton>
+              />
             ) : (
               // Nothing more can load: a small end mark and one quiet line, not a heading.
               <FeedEnd label={t('feedEnd')} />
@@ -121,6 +120,27 @@ export default function HomeFeedPage() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * The feed's way on: the label alone, in the tonal label's ink with no face of
+ * its own — not a form's button. While the next page is on its way the pen
+ * loop draws itself before the label (as a button's does); the button keeps
+ * its focus, takes no click and says it is busy. The apps' FeedMoreButton.
+ */
+function FeedMore({ label, loading, onClick }: { label: string; loading: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className={styles.more}
+      onClick={loading ? undefined : onClick}
+      aria-busy={loading || undefined}
+      aria-disabled={loading || undefined}
+    >
+      {loading && <ButtonLoader size={15} />}
+      {label}
+    </button>
   );
 }
 

@@ -113,8 +113,8 @@ describe('HomeFeedPage', () => {
 
     const { unmount } = renderWithIntl(<HomeFeedPage />);
     const btn = screen.getByRole('button', { name: 'Load more' });
-    // A quiet, frameless action under the list — terracotta text, no pen line.
-    expect(btn).toHaveAttribute('data-variant', 'textAccent');
+    // Its words alone under the list, not a form's pill: no OrganicButton face.
+    expect(btn).not.toHaveAttribute('data-variant');
     await userEvent.setup().click(btn);
     expect(loadMore).toHaveBeenCalled();
     unmount();
@@ -130,6 +130,23 @@ describe('HomeFeedPage', () => {
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
     expect(screen.queryByText('Write a card')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /write/i })).not.toBeInTheDocument();
+  });
+
+  it('says the next page is on its way and takes no second click while it loads', async () => {
+    const loadMore = vi.fn();
+    mockUseFeed.mockReturnValue({
+      data: { cards: [card('c1', 'a1', 'A thought')], authors: { a1: user('a1') } },
+      isLoading: false,
+      isLoadingMore: true,
+      hasMore: true,
+      loadMore,
+    });
+
+    renderWithIntl(<HomeFeedPage />);
+    const btn = screen.getByRole('button', { name: 'Load more' });
+    expect(btn).toHaveAttribute('aria-busy', 'true');
+    await userEvent.setup().click(btn);
+    expect(loadMore).not.toHaveBeenCalled();
   });
 
   it('has no page title over the feed, and ends with the quiet end mark only once nothing more can load', () => {

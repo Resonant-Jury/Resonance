@@ -183,7 +183,8 @@ struct ThreadScreen: View {
     @ViewBuilder private func content(_ model: ThreadModel) -> some View {
         switch model.phase {
         case .loading:
-            Color.clear
+            // Finding who it is with: the thread's shapes, over the room the composer will take.
+            ThreadSkeleton().padding(.bottom, 72)
         case .missing:
             Text(L10n.Messages.userNotFound)
                 .font(AppFonts.body(13)).foregroundStyle(Tokens.textMuted)
@@ -204,6 +205,10 @@ struct ThreadScreen: View {
                             pillVisible: !(searching && showResults) && toast == nil, underBar: $underBar)
                     // Under the search's list of matches the thread is out of sight: out of VoiceOver's reach too.
                     .accessibilityHidden(searching && showResults)
+                // The first read still on its way: the thread's shapes until the messages take their place.
+                if !model.threadReady {
+                    ThreadSkeleton().transition(.opacity)
+                }
                 if searching && showResults {
                     ThreadSearchResults(model: model, query: query, topMargin: barHeight, underBar: $resultsUnderBar) { pick($0) }
                 }
@@ -344,7 +349,9 @@ struct ThreadScreen: View {
     /// (and, once a match was chosen, "3/12" and the way through them).
     private var bar: some View {
         OrganicInlineBar("", backLabel: L10n.Messages.back, scrolled: searching && showResults ? resultsUnderBar : underBar) {
-            if let model, model.phase == .ready {
+            if let model, model.phase == .loading {
+                PersonPlaceholder(handle: model.displayHandle)
+            } else if let model, model.phase == .ready {
                 if searching {
                     ThreadSearchField(query: $query, focused: $searchFocused, position: searchPosition(model),
                                       onShowResults: { showResults = true },
@@ -363,7 +370,7 @@ struct ThreadScreen: View {
                     .accessibilityHint(L10n.Messages.viewProfile)
                 } else {
                     // Opened by uid: the pen name the link carried, until their profile arrives.
-                    Text(model.displayHandle).font(AppFonts.heading(18)).foregroundStyle(Tokens.text).lineLimit(1)
+                    PersonPlaceholder(handle: model.displayHandle)
                 }
             }
         } trailing: {
@@ -602,5 +609,19 @@ private struct SharedMediaContent: View {
         Text(text.uppercased())
             .font(AppFonts.body(12, weight: .semibold)).tracking(12 * 0.06).foregroundStyle(Tokens.textMuted)
             .padding(.bottom, 4)
+    }
+}
+
+/// The bar's person before their profile arrives: the pen name the way here carried, beside the
+/// face's place in the shimmer, so nothing moves along when the face comes.
+private struct PersonPlaceholder: View {
+    let handle: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            SkeletonBlock(width: 36, circle: true)
+            Text(handle).font(AppFonts.heading(18)).foregroundStyle(Tokens.text).lineLimit(1)
+                .accessibilityAddTraits(.isHeader)
+        }
     }
 }

@@ -74,6 +74,8 @@ import com.resonance.design.OrganicTextField
 import com.resonance.design.OrganicToggle
 import com.resonance.design.toggleRow
 import com.resonance.design.SketchLoader
+import androidx.compose.ui.semantics.contentDescription
+import com.resonance.design.Skeleton
 import com.resonance.design.WavyDivider
 import com.resonance.design.cream
 import com.resonance.design.generated.IconName
@@ -592,7 +594,23 @@ private fun ColumnScope.BlockedListContent(session: Session, onClose: () -> Unit
     ModalBody(L10n.Safety.BlockedList.subtitle)
     val list = people
     when {
-        list == null -> Box(Modifier.fillMaxWidth().padding(vertical = 18.dp), contentAlignment = Alignment.Center) { SketchLoader(44.dp) }
+        // Still reading: two rows' shapes, the rule between them as the list has.
+        list == null -> Column(Modifier.semantics { contentDescription = L10n.Home.moreLoading }) {
+            for (i in 0 until 2) {
+                if (i > 0) WavyDivider(seed = 100.0 + i * 7, modifier = Modifier.padding(vertical = 2.dp))
+                Row(
+                    Modifier.padding(horizontal = 2.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Skeleton(height = 36.dp, circle = true)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Skeleton(Modifier.width(if (i == 0) 112.dp else 88.dp), height = 14.dp)
+                        Skeleton(Modifier.width(72.dp), height = 11.dp)
+                    }
+                }
+            }
+        }
         list.isEmpty() -> OrganicEmptyState(L10n.Safety.BlockedList.empty, icon = IconName.Ban, seed = 61.0, verticalPadding = 18.dp)
         else -> Column {
             list.forEachIndexed { i, person ->

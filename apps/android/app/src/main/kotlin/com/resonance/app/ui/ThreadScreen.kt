@@ -44,6 +44,8 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
+import androidx.compose.foundation.layout.RowScope
+import com.resonance.design.Skeleton
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -229,7 +231,8 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
     Box(Modifier.fillMaxSize().cream().onSizeChanged { listWidth = with(density) { it.width.toDp() } }) {
         Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) {
             when (model.phase) {
-                ThreadModel.Phase.Loading -> {}
+                // Finding who it is with: the thread's shapes, over the room the composer will take.
+                ThreadModel.Phase.Loading -> ThreadSkeleton(Modifier.padding(top = top, bottom = 72.dp))
                 ThreadModel.Phase.Missing -> {
                     BasicText(
                         L10n.Messages.userNotFound,
@@ -246,6 +249,8 @@ fun ThreadScreen(session: Session, handle: String, uid: String?, note: Messaging
                     val foot = model.foot
                     Box(Modifier.weight(1f).fillMaxWidth()) {
                         MessageList(rows, ctx, list, top, Modifier.fillMaxSize(), pillVisible = !(searching && showResults), sayEmpty = foot.composes)
+                        // The first read still on its way: the thread's shapes until the messages take their place.
+                        if (!model.threadReady) ThreadSkeleton(Modifier.padding(top = top))
                         if (searching && showResults) SearchResults(model, query, top, resultsList, pick)
                     }
                     // In a wide pane the composer keeps to a column of its own, centred under the thread.
@@ -450,7 +455,8 @@ private fun ThreadBar(
     back: () -> Unit,
 ) {
     if (model.phase != ThreadModel.Phase.Ready) {
-        OrganicInlineBar(L10n.Messages.back, back)
+        // Finding who it is with: the pen name the way here carried, beside the face's place.
+        OrganicInlineBar(L10n.Messages.back, back, centre = if (model.phase == ThreadModel.Phase.Loading) ({ PersonPlaceholder(handle) }) else null)
         return
     }
     val pair = model.pairId
@@ -475,7 +481,8 @@ private fun ThreadBar(
         },
         // The person: beside the arrow on a phone and in a pane, in the middle of a tablet's header
         // when the thread fills the window (round 5, part C) — the thread's bar is the header there.
-        centre = if (searching || other == null) null else {
+        // Their profile not read yet: the pen name the way here carried, beside the face's place.
+        centre = if (searching) null else if (other == null) ({ PersonPlaceholder(handle) }) else {
             {
                 Row(
                     Modifier
@@ -502,6 +509,22 @@ private fun ThreadBar(
             }
         },
     )
+}
+
+/**
+ * The bar's person before their profile arrives: the pen name the way here carried, beside the
+ * face's place in the shimmer, so nothing moves along when the face comes. iOS's PersonPlaceholder.
+ */
+@Composable
+private fun RowScope.PersonPlaceholder(handle: String) {
+    Row(Modifier.weight(1f, fill = false), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Skeleton(height = 36.dp, circle = true)
+        BasicText(
+            handle, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = AppFonts.heading(18f, 700, lineHeight = 1.2f),
+            modifier = Modifier.weight(1f, fill = false).semantics { heading() },
+        )
+    }
 }
 
 // Labels

@@ -1,6 +1,9 @@
 package com.resonance.design
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.hoverable
@@ -466,3 +469,25 @@ fun FeedEndMark(text: String, modifier: Modifier = Modifier) {
 }
 
 private val FeedEndWave = 40.dp
+
+/**
+ * The feed's way on (the web's FeedMore): "Load more" alone, in the tonal label's ink with no face
+ * of its own — not a form's button — the press washing a wobbly outline as a bare glyph's does.
+ * While the next page is on its way the pen loop draws itself before the label (as a button's
+ * does) and taps do nothing. The twin of iOS's FeedMoreButton.
+ */
+@Composable
+fun FeedMoreButton(loading: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    // One node for TalkBack: the label, and while loading the loop's "Loading…" with it.
+    Row(
+        modifier
+            .heightIn(min = 48.dp)
+            .clickable(interactionSource = null, indication = OrganicIndication(), enabled = !loading, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (loading) SketchLoader(15.dp, Mixes.ButtonOnTonal)
+        BasicText(L10n.Home.moreBtn, style = AppFonts.body(14f, 600, lineHeight = 1.3f, color = Mixes.ButtonOnTonal))
+    }
+}
