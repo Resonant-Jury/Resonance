@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { AppHeader } from '@/components/sections/AppHeader/AppHeader';
 import { AppChromeProvider } from '@/components/providers/AppChrome';
-import { AccountDeletionBanner } from '@/components/molecules/AccountDeletionBanner/AccountDeletionBanner';
+import { AccountDeletionNotice } from '@/components/molecules/AccountDeletionNotice/AccountDeletionNotice';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useMyProfile } from '@/lib/data/hooks';
 import { useRouter, usePathname } from '@/i18n/navigation';
@@ -79,7 +79,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {!bareChrome && <AppHeader user={headerUser} signedIn={!!authUser} authReady={!loading} />}
       <main style={{ minHeight: '100vh' }}>{children}</main>
       {/* The banner's status comes from a cookie-authenticated /api route. */}
-      {authUser && sessionReady && <AccountDeletionBanner belowHeader={!bareChrome || writer} />}
+      {authUser && sessionReady && <AccountDeletionNotice />}
     </AppChromeProvider>
   );
 }

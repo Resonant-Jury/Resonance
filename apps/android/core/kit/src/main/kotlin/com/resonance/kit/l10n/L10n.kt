@@ -1498,8 +1498,12 @@ object L10n {
         }
     }
     object AccountDeletion {
-        /** Your account will be deleted on {date} */
-        fun banner(date: String): String = Strings.format("accountDeletion.banner", mapOf("date" to date))
+        /** Your account is scheduled for deletion */
+        val title: String get() = Strings.string("accountDeletion.title")
+        /** After {date}, your account and everything in it are deleted and can't be recovered. To keep it, cancel the deletion now. */
+        fun body(date: String): String = Strings.format("accountDeletion.body", mapOf("date" to date))
+        /** Keep it scheduled */
+        val keep: String get() = Strings.string("accountDeletion.keep")
         /** Cancel deletion */
         val cancel: String get() = Strings.string("accountDeletion.cancel")
         /** Couldn't cancel — try again */

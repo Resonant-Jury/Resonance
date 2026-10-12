@@ -452,12 +452,8 @@ fun MainTabs(session: Session, incomingRoute: MutableState<String?>) {
                     TopPen(pen.title, pen.icon, { select(Tab.Write) }, Modifier.align(Alignment.CenterEnd).padding(end = pad))
                 }
             }
-            // The undo banner floats above the tab bar (or the bottom edge on pushed screens) on every screen.
-            deletionDate?.let { date ->
-                Box(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = if (!topTabs && stack.size == 1) 96.dp else 12.dp)) {
-                    AccountDeletionBanner(session, date)
-                }
-            }
+            // The deletion's undo: a modal over every screen.
+            deletionDate?.let { date -> AccountDeletionNotice(session, date) }
             if (!topTabs) TabBarSlot(stack.size == 1, Modifier.align(Alignment.BottomCenter)) {
                 OrganicTabBar(tabItems, selection = tab, onSelect = select)
             }

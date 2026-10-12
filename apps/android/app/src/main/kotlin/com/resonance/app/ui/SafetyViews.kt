@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -15,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -27,14 +27,12 @@ import androidx.compose.ui.unit.dp
 import com.resonance.app.SafetyService
 import com.resonance.app.Session
 import com.resonance.design.AppFonts
-import com.resonance.design.ButtonVariant
 import com.resonance.design.ModalActions
 import com.resonance.design.ModalCloseButton
 import com.resonance.design.ModalError
 import com.resonance.design.OrganicAlert
 import com.resonance.design.ModalBody
 import com.resonance.design.ModalTitle
-import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicConfirmDialog
 import com.resonance.design.OrganicIcon
 import com.resonance.design.MenuTrigger
@@ -45,7 +43,6 @@ import com.resonance.design.OrganicRadio
 import com.resonance.design.OrganicTextField
 import com.resonance.design.OrganicToggle
 import com.resonance.design.toggleRow
-import com.resonance.design.organicSurface
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
 import com.resonance.kit.l10n.L10n
@@ -200,31 +197,34 @@ private fun reasonLabel(r: SafetyService.Reason) = when (r) {
     SafetyService.Reason.Other -> L10n.Safety.Report.Reasons.other
 }
 
-/** The undo banner while a deletion is scheduled (web: AccountDeletionBanner). */
+/**
+ * The undo while a deletion is scheduled (web: AccountDeletionNotice): a modal over the dimmed
+ * screen saying when it happens, with Cancel deletion as its verb. Keeping the deletion closes it
+ * until the next launch.
+ */
 @Composable
-fun AccountDeletionBanner(session: Session, date: OffsetDateTime) {
+fun AccountDeletionNotice(session: Session, date: OffsetDateTime) {
     val scope = rememberCoroutineScope()
+    var kept by rememberSaveable { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
-    Row(
-        Modifier
-            .padding(horizontal = 12.dp)
-            .fillMaxWidth()
-            .organicSurface(Tokens.TerracottaLight, Tokens.Terracotta, radius = 18.0, seed = 211.0, grainOpacity = 0.2f)
-            .padding(horizontal = 18.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        BasicText(L10n.AccountDeletion.banner(mediumDate(date.toString()) ?: ""), style = AppFonts.body(14f, 600), modifier = Modifier.weight(1f))
-        Spacer(Modifier.size(8.dp))
-        // The banner has its own pen line, so its undo draws none (as on the web and iOS).
-        OrganicButton(L10n.AccountDeletion.cancel, variant = ButtonVariant.Tonal, small = true, loading = busy) {
+    if (kept) return
+    OrganicConfirmDialog(
+        title = L10n.AccountDeletion.title,
+        body = L10n.AccountDeletion.body(mediumDate(date.toString()) ?: ""),
+        cancelLabel = L10n.AccountDeletion.keep,
+        confirmLabel = L10n.AccountDeletion.cancel,
+        onCancel = { kept = true },
+        onConfirm = {
             scope.launch {
                 busy = true
                 failed = false
                 runCatching { session.cancelDeletion() }.onFailure { failed = true }
                 busy = false
             }
-        }
-    }
-    if (failed) OrganicAlert(L10n.AccountDeletion.error) { failed = false }
+        },
+        busy = busy,
+        seed = 131.0,
+        error = if (failed) L10n.AccountDeletion.error else null,
+    )
 }

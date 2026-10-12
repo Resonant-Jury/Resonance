@@ -95,6 +95,7 @@ struct AppleTokenRevocation {
         }
         do {
             try await revoke(code)
+            Self.note("revoked")
         } catch {
             Self.note("Revoking the Apple token failed: \(error)")
         }

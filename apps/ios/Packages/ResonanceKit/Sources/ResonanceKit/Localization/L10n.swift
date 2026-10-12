@@ -1496,8 +1496,12 @@ public enum L10n {
         }
     }
     public enum AccountDeletion {
-        /// Your account will be deleted on {date}
-        public static func banner(date: String) -> String { Strings.shared.format("accountDeletion.banner", ["date": date]) }
+        /// Your account is scheduled for deletion
+        public static var title: String { Strings.shared.string("accountDeletion.title") }
+        /// After {date}, your account and everything in it are deleted and can't be recovered. To keep it, cancel the deletion now.
+        public static func body(date: String) -> String { Strings.shared.format("accountDeletion.body", ["date": date]) }
+        /// Keep it scheduled
+        public static var keep: String { Strings.shared.string("accountDeletion.keep") }
         /// Cancel deletion
         public static var cancel: String { Strings.shared.string("accountDeletion.cancel") }
         /// Couldn't cancel — try again

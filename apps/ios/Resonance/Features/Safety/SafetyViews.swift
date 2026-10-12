@@ -197,39 +197,30 @@ struct SafetyMenu: View {
     }
 }
 
-/// The undo banner while a deletion is scheduled (web: AccountDeletionBanner):
-/// card paper in a red hand-drawn rim, the date, and a small filled Cancel —
-/// stacked and centred, as the web lays it out on phones.
-struct AccountDeletionBanner: View {
-    let date: Date
+extension View {
+    /// The undo while a deletion is scheduled (web: AccountDeletionNotice): a modal over the
+    /// dimmed screen saying when it happens, with Cancel deletion as its verb. Keeping the
+    /// deletion closes it until the next launch.
+    func accountDeletionNotice() -> some View { modifier(AccountDeletionNotice()) }
+}
+
+private struct AccountDeletionNotice: ViewModifier {
     @Environment(SessionStore.self) private var session
+    @State private var kept = false
     @State private var busy = false
     @State private var failed = false
 
-    var body: some View {
-        VStack(spacing: 14) {
-            let when = date.formatted(Date.FormatStyle(date: .long, time: .omitted, locale: Strings.shared.locale))
-            let error = failed ? Text(verbatim: " " + L10n.AccountDeletion.error).foregroundStyle(Tokens.danger) : Text(verbatim: "")
-            // The error follows the sentence inline, in the danger ink.
-            Text("\(Text(verbatim: L10n.AccountDeletion.banner(date: when)))\(error)")
-                .font(AppFonts.body(14.5))
-                .foregroundStyle(Tokens.text)
-                .lineSpacing(14.5 * 0.5)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-            OrganicButton(L10n.AccountDeletion.cancel, variant: .tonal, size: .sm) { Task { await cancel() } }
-                .loading(busy)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(EdgeInsets(top: 12, leading: 20, bottom: 12, trailing: 14))
-        .background {
-            let shape = WobRectShape(radius: 18, seed: 131)
-            shape.fill(Tokens.cardBg)
-            shape.stroke(Tokens.danger, style: StrokeStyle(lineWidth: Tokens.ink, lineJoin: .round))
-        }
-        .frame(maxWidth: 560)
-        .padding(.horizontal, 20)
-        .accessibilityElement(children: .contain)
+    func body(content: Content) -> some View {
+        let date = session.deletionDate
+        content.organicConfirm(
+            isPresented: Binding(get: { date != nil && !kept }, set: { if !$0 { kept = true } }),
+            title: L10n.AccountDeletion.title,
+            message: L10n.AccountDeletion.body(date: (date ?? .now).formatted(
+                Date.FormatStyle(date: .long, time: .omitted, locale: Strings.shared.locale))),
+            cancelLabel: L10n.AccountDeletion.keep, confirmLabel: L10n.AccountDeletion.cancel,
+            closeLabel: L10n.AccountDeletion.keep, busy: busy,
+            error: failed ? L10n.AccountDeletion.error : nil, seed: 131
+        ) { Task { await cancel() } }
     }
 
     private func cancel() async {

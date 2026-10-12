@@ -825,7 +825,9 @@
     }
   },
   "accountDeletion": {
-    "banner": "Your account will be deleted on {date}",
+    "title": "Your account is scheduled for deletion",
+    "body": "After {date}, your account and everything in it are deleted and can't be recovered. To keep it, cancel the deletion now.",
+    "keep": "Keep it scheduled",
     "cancel": "Cancel deletion",
     "error": "Couldn't cancel — try again"
   },

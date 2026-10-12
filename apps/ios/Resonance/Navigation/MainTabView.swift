@@ -222,15 +222,10 @@ struct MainTabView: View {
         }
     }
 
-    /// What the tab view does around its stacks: the banner, the writer's requests, links and pushes.
+    /// What the tab view does around its stacks: the deletion's undo, the writer's requests, links and pushes.
     private func effects(_ content: some View) -> some View {
         content
-        // Content moves down under the banner rather than behind it.
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if let date = session.deletionDate {
-                AccountDeletionBanner(date: date).padding(.vertical, 6)
-            }
-        }
+        .accountDeletionNotice()
         .animation(.easeOut(duration: 0.12), value: bottomBar)
         .background(Tokens.cream)
         .environment(writer)
