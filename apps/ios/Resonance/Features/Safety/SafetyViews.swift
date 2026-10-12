@@ -148,6 +148,7 @@ struct SafetyMenu: View {
                           dismissible: !sendingReport) {
                 ReportForm(target: target, handle: handle, offerBlock: !isBlocked && target.userId != nil, sending: $sendingReport,
                            onClose: { reporting = false }, onBlocked: onChange)
+                .withSession(session)
             }
             .organicConfirm(isPresented: $confirmingBlock, title: L10n.Safety.blockTitle(handle: name),
                             message: L10n.Safety.blockBody, cancelLabel: L10n.Safety.cancel,

@@ -139,6 +139,9 @@ struct MessageList: View {
             .scrollPosition($position, anchor: .center)
             .upsideDown()
             .scrollIndicators(.hidden)
+            // The thread draws its own edges (the bar's paper, FootEdge): no system scroll edge effect — on a
+            // Mac, under the pointer, the flipped list's spread over the whole thread and blurred it.
+            .withoutScrollEdgeEffect()
             .scrollDismissesKeyboard(.interactively)
             // Upside down, the list's bottom margin is the room under the bar, its top the air over the
             // composer — with the fade's height besides, so the newest message rests clear of it.
@@ -276,6 +279,11 @@ extension View {
     /// Drawn upside down: the thread's list, and each of its rows the right way up again.
     func upsideDown() -> some View {
         scaleEffect(x: 1, y: -1, anchor: .center)
+    }
+
+    /// iOS 26's scroll edge effect (the blur where content meets a bar), turned off where it is available.
+    @ViewBuilder func withoutScrollEdgeEffect() -> some View {
+        if #available(iOS 26.0, *) { scrollEdgeEffectHidden(true, for: .all) } else { self }
     }
 }
 

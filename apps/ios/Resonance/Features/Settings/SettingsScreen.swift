@@ -348,12 +348,13 @@ struct AccountSettings: View {
 
 /// Privacy: the block list, in its own dialog.
 private struct PrivacySettings: View {
+    @Environment(SessionStore.self) private var session
     @State private var showingBlocks = false
 
     var body: some View {
         OrganicButton(L10n.Settings.Privacy.manageBlocks, variant: .tonal) { showingBlocks = true }
             .organicModal(isPresented: $showingBlocks, seed: 97, closeLabel: L10n.Safety.BlockedList.close) {
-                BlockedListContent { showingBlocks = false }
+                BlockedListContent { showingBlocks = false }.withSession(session)
             }
     }
 }

@@ -42,6 +42,7 @@ struct CardViewerActions: View {
                 // The note's words become the resonance's story (the web drops them; the apps keep them).
                 writer.open(.init(referenceCardId: cardId, story: text))
             }
+            .withSession(session)
         }
         .organicModal(isPresented: $picking, seed: 53, maxWidth: 480, closeLabel: L10n.Card.ResonatePicker.cancel,
                       dismissible: !resonating) {
@@ -55,6 +56,7 @@ struct CardViewerActions: View {
             } onCancel: {
                 picking = false
             }
+            .withSession(session)
         }
         .task(id: "\(cardId)#\(writer.changes)") {
             // Signed out: nothing to find. A failed lookup is tried again, then left to a tap — never

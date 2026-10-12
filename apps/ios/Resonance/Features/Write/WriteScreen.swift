@@ -188,6 +188,7 @@ struct WriteScreen: View {
                 pickingCard = false
                 model.editor.exec("insertCard", ["href": "/card/\(card.routeKey)", "title": card.title])
             } onCancel: { pickingCard = false }
+            .withSession(session)
         }
         .organicModal(isPresented: $publishing, seed: 29, maxWidth: 480, closeLabel: L10n.Write.PublishPanel.cancel,
                       dismissible: !panelBusy) {
@@ -198,6 +199,7 @@ struct WriteScreen: View {
                                  afterDialog: true)
                 }
             } onCancel: { publishing = false }
+            .withSession(session)
         }
         .organicConfirm(isPresented: $leaving, title: L10n.Write.leaveTitle,
                         message: model.isPublished ? L10n.Write.leaveBodyRevision : L10n.Write.leaveBody,

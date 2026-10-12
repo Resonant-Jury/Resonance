@@ -24,3 +24,13 @@ struct ResonanceApp: App {
         }
     }
 }
+
+extension View {
+    /// A modal's content handed the session itself rather than left to inherit it. On a Mac (the iPad
+    /// app there) SwiftUI builds a presented cover's view before the presenter's environment reaches
+    /// it, and a view reading `@Environment(SessionStore.self)` then crashes the app — 分享卡片 in a
+    /// conversation did. Every `organicModal` whose content reads the session goes through this.
+    func withSession(_ session: SessionStore) -> some View {
+        environment(session)
+    }
+}

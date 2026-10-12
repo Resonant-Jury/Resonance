@@ -455,6 +455,7 @@ struct ThreadScreen: View {
                         showingMedia = false
                         openLink(url)
                     }
+                    .withSession(session)
                 }
             }
             .organicModal(isPresented: $reporting, seed: 83, maxWidth: 460, closeLabel: L10n.Safety.Report.close, dismissible: !sendingReport) {
@@ -462,6 +463,7 @@ struct ThreadScreen: View {
                     ReportForm(target: .message(id: pair, senderId: other.id, conversationId: pair), handle: other.handle,
                                offerBlock: !model.isBlocked, sending: $sendingReport, onClose: { reporting = false },
                                onBlocked: { Task { await model.refreshConnection() } })
+                    .withSession(session)
                 }
             }
             .organicConfirm(isPresented: $confirmingBlock, title: L10n.Safety.blockTitle(handle: model?.other?.handle ?? ""),
@@ -486,6 +488,7 @@ struct ThreadScreen: View {
                     model?.pendingCard = card
                     pickingCard = false
                 } onCancel: { pickingCard = false }
+                .withSession(session)
             }
     }
 
