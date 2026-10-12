@@ -491,8 +491,19 @@ val BrandBarHeight = 58.dp
 /** The wordmark. */
 private const val BRAND = "Resonance"
 
-/** A screen's title in a phone's bar (a tab's in the brand's place, a pushed page's beside the arrow): Playfair 19/700. */
-private fun phoneBarTitle() = AppFonts.heading(19f, 700, lineHeight = 1.2f).copy(letterSpacing = (-0.02).em)
+/** A screen's title in a phone's bar (a tab's in the brand's place, a pushed page's beside the arrow): Playfair 20/700. */
+private fun phoneBarTitle() = AppFonts.heading(PHONE_BAR_TITLE, 700, lineHeight = 1.2f).copy(letterSpacing = (-0.02).em)
+
+private const val PHONE_BAR_TITLE = 20f
+
+/**
+ * How far a phone bar's title drops below where its line box sets it. CJK ideographs fill the em box
+ * evenly, so a CJK title centred by the heading face's line metrics reads higher beside the mark than
+ * the wordmark, whose weight sits low at its x-height (measured on both apps: 私訊's ink 1.6dp higher
+ * against the wave than "Resonance"'s). 0.08em brings it level; a Latin title stays. iOS's barTitleDrop.
+ */
+internal fun barTitleDrop(title: String): Dp =
+    if (title.any { Character.isIdeographic(it.code) }) (PHONE_BAR_TITLE * 0.08f).dp else 0.dp
 
 /**
  * The root screens' pinned header (AppHeader on a phone): the brand lockup —
@@ -501,7 +512,7 @@ private fun phoneBarTitle() = AppFonts.heading(19f, 700, lineHeight = 1.2f).copy
  * content scrolls under it. Lay it over the list.
  *
  * On a phone a tab other than the feed hangs its own title where the brand would be
- * (`brand` = the title, `isHeading`), a step smaller (19: its CJK reads larger than the
+ * (`brand` = the title, `isHeading`), a step smaller (20: its CJK reads larger than the
  * wordmark), and its actions at the end; beside a tablet header's tabs the brand stays.
  */
 @Composable
@@ -533,7 +544,8 @@ fun OrganicBrandBar(
             OrganicIcon(IconName.Wave, Modifier.offset(y = (38 * 0.07).dp), size = 38.dp, color = Tokens.Terracotta, strokeWidth = Tokens.Ink.value)
             BasicText(
                 brand, maxLines = 1, overflow = TextOverflow.Ellipsis, style = titleStyle,
-                modifier = Modifier.weight(1f).then(if (isHeading) Modifier.semantics { heading() } else Modifier),
+                modifier = Modifier.weight(1f).offset(y = if (isHeading) barTitleDrop(brand) else 0.dp)
+                    .then(if (isHeading) Modifier.semantics { heading() } else Modifier),
             )
         } else {
             // Beside the header's tabs (design note B2): the leading part keeps clear of them. It is
@@ -571,7 +583,7 @@ fun OrganicPageTitle(title: String, modifier: Modifier = Modifier, trailing: @Co
 
 /**
  * Pushed-screen bar (AppHeader's phone takeover): the bare back arrow and,
- * when given, the screen's title in Playfair 19/700 beside it; trailing
+ * when given, the screen's title in Playfair 20/700 beside it; trailing
  * actions at the end. Edged by the header's wavy line.
  *
  * On a medium or expanded window (round 5, part C) a pushed page's bar is the whole header — no
@@ -606,7 +618,7 @@ fun OrganicInlineBar(
     val back: @Composable () -> Unit = {
         if (showBack && !LocalBarBackHidden.current) OrganicIconButton(IconName.ArrowRight, backLabel, mirrored = true, onClick = onBack) else Spacer(Modifier.width(12.dp))
     }
-    // A phone's title beside the arrow is 19 bold; a tablet header's context, an inline title's 17
+    // A phone's title beside the arrow is 20 bold; a tablet header's context, an inline title's 17
     // semibold (round 5 D5: iPadOS's inline title), one line, truncated.
     val titleStyle = if (chrome != null) AppFonts.heading(17f, 600, lineHeight = 1.25f).copy(letterSpacing = (-0.01).em)
         else phoneBarTitle()
@@ -636,7 +648,7 @@ fun OrganicInlineBar(
             back()
             if (title != null) {
                 Spacer(Modifier.width(4.dp))
-                titleText(Modifier.weight(1f))
+                titleText(Modifier.weight(1f).offset(y = barTitleDrop(title)))
             } else {
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     leading()

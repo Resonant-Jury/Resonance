@@ -550,7 +550,15 @@ public struct UnreadBadge: View {
 /// A page's title in a bar's brand place (a tab that names itself, a settings section, the writer): on a
 /// phone a step under the wordmark's 22, which stays — the heading face's CJK reads larger than "Resonance".
 private func barTitleSize(_ window: WindowLayout) -> CGFloat {
-    window.layoutClass == .compact ? 19 : 22
+    window.layoutClass == .compact ? 20 : 22
+}
+
+/// How far a bar title drops below where its line box sets it. CJK ideographs fill the em box evenly,
+/// so a CJK title centred by the heading face's line metrics reads higher beside the mark than the
+/// wordmark, whose weight sits low at its x-height (measured on both apps: 私訊's ink 1.6pt higher
+/// against the wave than "Resonance"'s). 0.08em brings it level; a Latin title stays. Android's barTitleDrop.
+private func barTitleDrop(_ title: String, size: CGFloat) -> CGFloat {
+    title.unicodeScalars.contains { $0.properties.isIdeographic } ? size * 0.08 : 0
 }
 
 /// The root tabs' pinned bar (the web AppHeader on a phone): the brand
@@ -626,6 +634,7 @@ public struct OrganicBrandBar<Trailing: View>: View {
                 .tracking(-0.02 * size)
                 .lineLimit(1)
                 .foregroundStyle(Tokens.text)
+                .offset(y: barTitleDrop(title, size: size))
                 .accessibilityAddTraits(.isHeader)
         } else {
             wordmark
@@ -809,6 +818,7 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .foregroundStyle(Tokens.text)
+                .offset(y: chrome != nil ? 0 : barTitleDrop(title, size: size))
                 .accessibilityAddTraits(.isHeader)
         }
     }
