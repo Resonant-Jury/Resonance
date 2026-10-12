@@ -145,7 +145,7 @@ real data) you also need Java 21 and the [Firebase CLI](https://firebase.google.
 (`npm install -g firebase-tools`).
 
 ```bash
-git clone https://github.com/Resonant-Jury/Resonance.git
+git clone https://github.com/resonance-crew/Resonance.git
 cd Resonance
 npm ci
 
@@ -197,7 +197,7 @@ Please don't open a public issue for a vulnerability. Email **support@resonance.
 
 ## License
 
-The source code is released under the [MIT License](LICENSE), Copyright (c) 2026 Resonant-Jury.
+The source code is released under the [MIT License](LICENSE), Copyright (c) 2026 resonance-crew.
 
 The license covers the code. It does not cover the **Resonance name, the wave logo or the app
 icons**: please don't use them for your own product, and give a fork you publish its own name and

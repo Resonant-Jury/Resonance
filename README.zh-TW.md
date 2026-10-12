@@ -70,4 +70,4 @@
 
 ## 授權
 
-程式碼以 [MIT 授權](LICENSE) 釋出（Copyright (c) 2026 Resonant-Jury）。授權範圍只包含程式碼，不包含 **Resonance／共振的名稱、波浪標誌與 App 圖示**：請不要用在你自己的產品上，發布分支版本時請換上自己的名稱與圖示。字型、旗幟與商店徽章來自第三方，依其各自的條款使用，見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+程式碼以 [MIT 授權](LICENSE) 釋出（Copyright (c) 2026 resonance-crew）。授權範圍只包含程式碼，不包含 **Resonance／共振的名稱、波浪標誌與 App 圖示**：請不要用在你自己的產品上，發布分支版本時請換上自己的名稱與圖示。字型、旗幟與商店徽章來自第三方，依其各自的條款使用，見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
