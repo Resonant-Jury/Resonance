@@ -39,6 +39,7 @@ import { wobCircle } from '../../../src/lib/design/wobCircle';
 import { wobRect } from '../../../src/lib/design/wobRect';
 import {
   BUILD,
+  GFX,
   OUT,
   RAW,
   ROOT,
@@ -59,6 +60,7 @@ import {
   type Tokens,
 } from './lib';
 import { KEYS, ensurePlaceholder, type Key, type Platform } from './placeholders';
+import { WORLDS } from '../../../scripts/seed-store-demo';
 
 /* ── what to make ─────────────────────────────────────────────────────── */
 
@@ -524,20 +526,40 @@ async function slideHtml(
   return { html: htmlDoc(`${variantDir(p, lang)} ${slide.key}`, css, fonts, body, lang === 'en' ? 'en' : undefined), g };
 }
 
-/* ── App Store header & search asset (iOS 27 product page) ───────────────── */
+/* ── App Store header & search assets (iOS 27 product page) ──────────────── */
 
 /**
- * One universal 16:9 PNG per language for App Store Connect's 「標題和搜尋結果」: the product page header crops it to
- * 21:9 and the search result to 3:2, both around its centre, so the phrase and the top of the middle iPad sit in
- * the rectangle both crops keep (HEADER_SAFE); the side iPads and the doodles only fill the wider views.
+ * App Store Connect's 「標題和搜尋結果」 take two creative assets, made here per language:
+ * - the product page header, 21:9 (3840×1646 opaque PNG). Its preview shows the top half of it above the app's info
+ *   sheet (iPhone crops it to about the middle 45 % of its width), so it is the brand line in that upper band,
+ *   story cards scattered either side for the wider views and nothing that needs the lower half;
+ * - the search result, 16:9 (5244×2950 opaque PNG), shown almost whole: the brand line and its subline at the
+ *   top, three landscape iPads (the feed in the middle, the writer beside its map and Messages either side)
+ *   below them with clear air between.
  */
-const HEADER = { w: 5244, h: 2950 };
-/** Where every crop keeps the content: the header's 21:9 safe area (~43 % × 40 % of its crop), inside the search one. */
-const HEADER_SAFE = { l: 1500, t: 1025, r: 3744, b: 1925 };
-const HEADER_COPY: Record<Lang, { text: string; em: string; size: number }> = {
-  'zh-TW': { text: '用故事回應故事', em: '回應', size: 250 },
-  en: { text: 'Answer stories with stories', em: 'Answer', size: 168 },
+const HEADER = { w: 3840, h: 1646 };
+/** Where the iPhone's header crop and the iPads' visible band both keep the line (preview-measured). */
+const HEADER_SAFE = { l: 1100, t: 260, r: 2740, b: 860 };
+const SEARCH = { w: 5244, h: 2950 };
+const SEARCH_SAFE = { l: 410, t: 120, r: 4834, b: 2830 };
+const BRAND_LINE: Record<Lang, { text: string; em: string; sub: string }> = {
+  'zh-TW': { text: '用故事回應故事', em: '回應', sub: '讀到觸動你的卡片，寫下你自己的經歷' },
+  en: { text: 'Answer stories with stories', em: 'Answer', sub: 'When a card moves you, write your own' },
 };
+/** Font sizes (px) per asset and language: the headline, then the subline (0 = none). */
+const ASSET_TYPE: Record<'header' | 'search', Record<Lang, [number, number]>> = {
+  header: { 'zh-TW': [220, 0], en: [128, 0] },
+  search: { 'zh-TW': [330, 118], en: [236, 112] },
+};
+/** The cards scattered beside the header's line: demo cards, where they sit (canvas fractions) and their tilt. */
+const HEADER_CARDS: { id: string; x: number; y: number; deg: number }[] = [
+  { id: 'first-lamp-in-my-rental', x: 0.105, y: 0.27, deg: -7 },
+  { id: 'fathers-old-bicycle', x: 0.215, y: 0.62, deg: 5 },
+  { id: 'mint-on-the-balcony', x: 0.06, y: 0.8, deg: 4 },
+  { id: 'first-morning-after-quitting', x: 0.895, y: 0.26, deg: 6 },
+  { id: 'mothers-phone-call', x: 0.785, y: 0.63, deg: -5 },
+  { id: 'the-day-i-moved-out', x: 0.95, y: 0.8, deg: -3 },
+];
 
 /** A landscape iPad capture in the slides' hand-drawn frame, `outerW` wide. */
 async function ipadFrame(rawFile: string, outerW: number, seed: number, U: number) {
@@ -567,79 +589,163 @@ async function ipadFrame(rawFile: string, outerW: number, seed: number, U: numbe
   return { svg, w: outerW, h: outerH };
 }
 
-async function headerHtml(T: Tokens, fonts: string, A: Record<AccentName, Accent>, lang: Lang): Promise<string> {
+/** A demo story card as the feed draws one: its tint, the cover inset in a wobbly frame, the title under it. */
+async function storyCard(id: string, lang: Lang, w: number, seed: number, U: number) {
+  const card = WORLDS[lang].cards.find((c) => c.id === id);
+  if (!card) throw new Error(`header: no demo card ${id}`);
+  const file = path.join(GFX, 'demo-media', `${id}.jpg`);
+  const pad = Math.round(w * 0.07);
+  const coverW = w - 2 * pad;
+  const coverH = Math.round(coverW * 0.62);
+  const titleFs = Math.round(w * (lang === 'en' ? 0.05 : 0.074));
+  const h = pad + coverH + Math.round(titleFs * 0.9) + Math.round(titleFs * 1.3) + Math.round(pad * 0.9);
+  const img = await sharp(file).resize({ width: coverW * 2, height: coverH * 2, fit: 'cover' }).jpeg({ quality: 88 }).toBuffer();
+  const pen = INK * (U / 390) * 0.55;
+  const outer = wobRect(w, h, w * 0.07, seed, w * 0.006, { segmentsH: 3, segmentsV: 3 });
+  const inner = wobRect(coverW, coverH, coverW * 0.06, seed + 1, coverW * 0.004, { cornerJitter: 0.25 });
+  const fill = `oklch(96% 0.025 ${card.hue})`;
+  const line = `oklch(52% 0.09 ${card.hue})`;
+  const svg =
+    `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" style="overflow:visible">` +
+    `<defs><clipPath id="cv${seed}"><path d="${inner}" transform="translate(${pad} ${pad})"/></clipPath></defs>` +
+    `<path d="${outer}" fill="${fill}" stroke="${line}" stroke-width="${num(pen)}" stroke-linejoin="round"/>` +
+    `<image href="data:image/jpeg;base64,${img.toString('base64')}" x="${pad}" y="${pad}" width="${coverW}" height="${coverH}" preserveAspectRatio="xMidYMid slice" clip-path="url(#cv${seed})"/>` +
+    `<text x="${pad}" y="${pad + coverH + Math.round(titleFs * 0.9) + titleFs}" font-family="var(--serif)" font-weight="700" font-size="${titleFs}" fill="var(--ink)">${esc(card.title)}</text></svg>`;
+  return { svg, w, h };
+}
+
+function brandLine(lang: Lang, A: Accent, size: number, sub: number, maxW: number) {
+  const copy = BRAND_LINE[lang];
+  const [b1, b2] = copy.text.split(copy.em);
+  const subHtml = sub ? `<p><span class="fitbox" data-max="${maxW}" data-fs="${sub}" data-measure="subline" data-safe="1">${esc(copy.sub)}</span></p>` : '';
+  return (
+    `<h1><span class="fitbox" data-max="${maxW}" data-fs="${size}" data-measure="headline" data-safe="1">${esc(b1)}<span class="em" style="color:${A.ink}">${esc(copy.em)}${underline(waveUnits(copy.em, lang), 9, A.mid)}</span>${esc(b2)}</span></h1>` +
+    subHtml
+  );
+}
+
+function assetCss(T: Tokens, W: number, H: number, lang: Lang, A: Accent, size: number, sub: number) {
+  const ty = TYPE[lang];
+  return `${pageCss(T, W, H, lang)}
+  .canvas{background:linear-gradient(180deg,var(--cream) 0%,var(--cream) 45%,color-mix(in oklch,var(--cream) 86%,${A.tone} 14%) 100%)}
+  .abs{position:absolute}
+  .text{position:absolute;left:0;right:0;text-align:center}
+  h1{font:${ty.hWeight} ${size}px/1.2 var(--serif);letter-spacing:${ty.hTrack};color:var(--ink)}
+  p{margin-top:${Math.round(size * 0.3)}px;font:${ty.sWeight} ${sub}px/1.45 var(--sans);letter-spacing:${ty.sTrack};color:var(--muted)}${
+    lang === 'en' ? `\n  .uline{bottom:${ty.uline}}` : ''
+  }`;
+}
+
+/** Doodles per asset, as canvas fractions, all clear of the brand line's band. */
+const ASSET_DOODLES: Record<'header' | 'search', { ring: [number, number]; squiggle: [number, number]; sparkles: [number, number][]; dots: [number, number] }> = {
+  header: { ring: [0.335, 0.12], squiggle: [0.63, 0.1], sparkles: [[0.4, 0.8], [0.61, 0.84]], dots: [0.7, 0.16] },
+  search: { ring: [0.17, 0.36], squiggle: [0.84, 0.34], sparkles: [[0.09, 0.47], [0.93, 0.47]], dots: [0.79, 0.24] },
+};
+
+function backdrop(W: number, H: number, U: number, A: Record<AccentName, Accent>, centreBlob: { y: number; r: number }, kind: 'header' | 'search') {
+  const d = ASSET_DOODLES[kind];
+  const s = (U / 390) * 0.62;
+  const pen = INK * s;
+  const terra = A.terracotta;
+  const g = 'blobgrain';
+  return `<svg class="layer" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">
+    <defs>${grainDefs('grain', 0.72 / s, 5)}
+      <filter id="${g}" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="${num(0.9 / s)}" numOctaves="2" stitchTiles="stitch" seed="3"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope="0.4"/></feComponentTransfer><feComposite in2="SourceGraphic" operator="in"/></filter></defs>
+    ${blob(W * 0.5, centreBlob.y, centreBlob.r, 11, terra.tone, 0.5, g)}
+    ${blob(W * 0.1, H * 0.12, U * 0.34, 41, A.lavender.tone, 0.5, g)}
+    ${blob(W * 0.92, H * 0.1, U * 0.3, 23, A.sage.tone, 0.5, g)}
+    ${blob(W * 0.03, H * 0.95, U * 0.26, 37, A.yellow.tone, 0.45, g)}
+    ${blob(W * 0.98, H * 0.92, U * 0.27, 53, A.sky.tone, 0.45, g)}
+    ${ring(W * d.ring[0], H * d.ring[1], U * 0.026, 21, terra.mid, pen)}
+    ${squiggle(W * d.squiggle[0], H * d.squiggle[1], U * 0.1, -8, 22, A.sage.mid, pen)}
+    ${sparkle(W * d.sparkles[0][0], H * d.sparkles[0][1], U * 0.03, 23, A.lavender.mid, pen * 0.85)}
+    ${sparkle(W * d.sparkles[1][0], H * d.sparkles[1][1], U * 0.026, 24, terra.mid, pen * 0.85)}
+    ${dot(W * d.dots[0], H * d.dots[1], U * 0.009, 25, A.sky.mid)}${dot(W * d.dots[0] + U * 0.02, H * d.dots[1] + U * 0.02, U * 0.006, 26, A.sky.mid)}
+    <rect width="${W}" height="${H}" filter="url(#grain)" opacity="0.055"/>
+  </svg>`;
+}
+
+async function headerAssetHtml(T: Tokens, fonts: string, A: Record<AccentName, Accent>, lang: Lang): Promise<string> {
   const { w: W, h: H } = HEADER;
+  const U = H;
+  const [size] = ASSET_TYPE.header[lang];
+  const cardW = Math.round(W * 0.135);
+  const cards = await Promise.all(HEADER_CARDS.map((c, i) => storyCard(c.id, lang, cardW, 70 + i * 7, U)));
+  const shadow = `filter:drop-shadow(0 ${Math.round(U * 0.016)}px ${Math.round(U * 0.026)}px oklch(20% 0.04 60 / 0.2))`;
+  const cardHtml = HEADER_CARDS.map((c, i) => {
+    const k = cards[i];
+    return `<div class="abs" style="left:${Math.round(W * c.x - k.w / 2)}px;top:${Math.round(H * c.y - k.h / 2)}px;transform:rotate(${c.deg}deg);${shadow}">${k.svg}</div>`;
+  }).join('\n  ');
+  const lineTop = Math.round(H * 0.42 - size * 0.6);
+  const body = `<div class="canvas">
+  ${backdrop(W, H, U, A, { y: H * 0.5, r: U * 0.5 }, 'header')}
+  ${cardHtml}
+  <div class="text" style="top:${lineTop}px">${brandLine(lang, A.terracotta, size, 0, HEADER_SAFE.r - HEADER_SAFE.l)}</div>
+</div>`;
+  return htmlDoc(`App Store header ${lang}`, assetCss(T, W, H, lang, A.terracotta, size, 0), fonts, body, lang === 'en' ? 'en' : 'zh-Hant-TW');
+}
+
+async function searchAssetHtml(T: Tokens, fonts: string, A: Record<AccentName, Accent>, lang: Lang): Promise<string> {
+  const { w: W, h: H } = SEARCH;
   const U = H;
   const dir = variantDir('ipad', lang);
   const raw = (key: Key) => path.join(RAW, dir, `${key}.png`);
   for (const k of ['feed', 'write', 'messages'] as const) {
-    if (!fs.existsSync(raw(k))) throw new Error(`header: raw/${dir}/${k}.png is missing`);
+    if (!fs.existsSync(raw(k))) throw new Error(`search asset: raw/${dir}/${k}.png is missing`);
   }
-  const terra = A.terracotta;
-  const s = (U / 390) * 0.62;
-  const pen = INK * s;
-  const centre = await ipadFrame(raw('feed'), 2500, 11, U);
-  const left = await ipadFrame(raw('write'), 2050, 37, U);
-  const right = await ipadFrame(raw('messages'), 2050, 53, U);
-  const copy = HEADER_COPY[lang];
-  const [b1, b2] = copy.text.split(copy.em);
-  const ty = TYPE[lang];
-  const grainId = 'blobgrain';
+  const [size, sub] = ASSET_TYPE.search[lang];
+  const centre = await ipadFrame(raw('feed'), 2900, 11, U);
+  const left = await ipadFrame(raw('write'), 2300, 37, U);
+  const right = await ipadFrame(raw('messages'), 2300, 53, U);
   const shadow = `filter:drop-shadow(0 ${Math.round(U * 0.03)}px ${Math.round(U * 0.045)}px oklch(20% 0.04 60 / 0.22)) drop-shadow(0 ${Math.round(U * 0.005)}px ${Math.round(U * 0.01)}px oklch(20% 0.04 60 / 0.16))`;
-  const centreTop = 1430;
-  const sideTop = 1640;
+  const textTop = 300;
+  const centreTop = 1240;
+  const sideTop = 1520;
   const body = `<div class="canvas">
-  <svg class="layer" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">
-    <defs>${grainDefs('grain', 0.72 / s, 5)}
-      <filter id="${grainId}" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="${num(0.9 / s)}" numOctaves="2" stitchTiles="stitch" seed="3"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope="0.4"/></feComponentTransfer><feComposite in2="SourceGraphic" operator="in"/></filter></defs>
-    ${blob(W * 0.5, H * 0.92, U * 0.62, 11, terra.tone, 0.55, grainId)}
-    ${blob(W * 0.12, H * 0.2, U * 0.3, 41, A.lavender.tone, 0.5, grainId)}
-    ${blob(W * 0.9, H * 0.16, U * 0.27, 23, A.sage.tone, 0.5, grainId)}
-    ${blob(W * 0.04, H * 0.86, U * 0.24, 37, A.yellow.tone, 0.45, grainId)}
-    ${blob(W * 0.97, H * 0.82, U * 0.25, 53, A.sky.tone, 0.45, grainId)}
-    ${ring(W * 0.27, H * 0.17, U * 0.022, 21, terra.mid, pen)}
-    ${squiggle(W * 0.69, H * 0.15, U * 0.09, -8, 22, A.sage.mid, pen)}
-    ${sparkle(W * 0.21, H * 0.33, U * 0.026, 23, A.lavender.mid, pen * 0.85)}
-    ${sparkle(W * 0.79, H * 0.3, U * 0.022, 24, terra.mid, pen * 0.85)}
-    ${dot(W * 0.74, H * 0.24, U * 0.008, 25, A.sky.mid)}${dot(W * 0.755, H * 0.255, U * 0.005, 26, A.sky.mid)}
-    ${ring(W * 0.83, H * 0.42, U * 0.016, 27, A.sky.mid, pen)}
-    ${squiggle(W * 0.15, H * 0.44, U * 0.08, 80, 28, A.yellow.mid, pen)}
-    <rect width="${W}" height="${H}" filter="url(#grain)" opacity="0.055"/>
-  </svg>
-  <div class="dev" style="left:${Math.round(W / 2 - 1700 - left.w / 2)}px;top:${sideTop}px;${shadow}">${left.svg}</div>
-  <div class="dev" style="left:${Math.round(W / 2 + 1700 - right.w / 2)}px;top:${sideTop}px;${shadow}">${right.svg}</div>
-  <div class="dev" style="left:${Math.round(W / 2 - centre.w / 2)}px;top:${centreTop}px;${shadow}">${centre.svg}</div>
-  <div class="text">
-    <h1><span class="fitbox" data-max="${HEADER_SAFE.r - HEADER_SAFE.l - 60}" data-fs="${copy.size}" data-measure="headline" data-safe="1">${esc(b1)}<span class="em" style="color:${terra.ink}">${esc(copy.em)}${underline(waveUnits(copy.em, lang), 9, terra.mid)}</span>${esc(b2)}</span></h1>
-  </div>
+  ${backdrop(W, H, U, A, { y: H * 0.96, r: U * 0.62 }, 'search')}
+  <div class="abs" style="left:${Math.round(W / 2 - 1950 - left.w / 2)}px;top:${sideTop}px;${shadow}">${left.svg}</div>
+  <div class="abs" style="left:${Math.round(W / 2 + 1950 - right.w / 2)}px;top:${sideTop}px;${shadow}">${right.svg}</div>
+  <div class="abs" style="left:${Math.round(W / 2 - centre.w / 2)}px;top:${centreTop}px;${shadow}">${centre.svg}</div>
+  <div class="text" style="top:${textTop}px">${brandLine(lang, A.terracotta, size, sub, SEARCH_SAFE.r - SEARCH_SAFE.l - 400)}</div>
 </div>`;
-  const css = `${pageCss(T, W, H, lang)}
-  .canvas{background:linear-gradient(180deg,var(--cream) 0%,var(--cream) 45%,color-mix(in oklch,var(--cream) 86%,${terra.tone} 14%) 100%)}
-  .dev{position:absolute}
-  .text{position:absolute;left:0;right:0;top:${HEADER_SAFE.t + 30}px;text-align:center}
-  h1{font:${ty.hWeight} ${copy.size}px/1.2 var(--serif);letter-spacing:${ty.hTrack};color:var(--ink)}${lang === 'en' ? `\n  .uline{bottom:${ty.uline}}` : ''}`;
-  return htmlDoc(`App Store header ${lang}`, css, fonts, body, lang === 'en' ? 'en' : 'zh-Hant-TW');
+  return htmlDoc(`App Store search ${lang}`, assetCss(T, W, H, lang, A.terracotta, size, sub), fonts, body, lang === 'en' ? 'en' : 'zh-Hant-TW');
 }
+
+/** Every word the header and search assets set: the brand line, its subline and the scattered cards' titles. */
+const assetCopy = (lang: Lang) => [
+  BRAND_LINE[lang].text,
+  BRAND_LINE[lang].sub,
+  ...HEADER_CARDS.map((c) => WORLDS[lang].cards.find((k) => k.id === c.id)?.title ?? ''),
+];
 
 async function renderHeader(T: Tokens, fonts: string, fontsEn: string, langs: Lang[], check: boolean) {
   console.log('\nappstore header & search');
   const A = accentsFrom(T);
-  const { w, h } = HEADER;
+  const jobs = [
+    // ASC's upload takes .png only for both (its spec page also lists .jpg for the 21:9 header).
+    { kind: 'header', size: HEADER, safe: HEADER_SAFE, make: headerAssetHtml },
+    { kind: 'search', size: SEARCH, safe: SEARCH_SAFE, make: searchAssetHtml },
+  ] as const;
   for (const lang of langs) {
-    const name = lang === 'en' ? 'header-search.en' : 'header-search';
-    const htmlPath = path.join(BUILD, 'appstore', `${name}.html`);
-    const shot = path.join(BUILD, 'appstore', `${name}.raw.png`);
-    const png = path.join(OUT, 'appstore', `${name}.png`);
-    mkdirp(path.dirname(htmlPath));
-    mkdirp(path.dirname(png));
-    fs.writeFileSync(htmlPath, await headerHtml(T, lang === 'en' ? fontsEn : fonts, A, lang));
-    await screenshot(htmlPath, shot, w, h);
-    // Apple refuses transparency: an opaque RGB PNG.
-    await sharp(shot).flatten({ background: '#faf2e9' }).removeAlpha().png({ compressionLevel: 9 }).toFile(png);
-    assertSize(png, w, h);
-    console.log(`  ${path.relative(ROOT, png)}  ${Math.round(fs.statSync(png).size / 1024)} KB`);
-    if (check) {
-      report(`appstore/${name}`, SLIDE_FONTS[lang].slice(0, 1), await measure(htmlPath, w, h), w, h, HEADER_SAFE);
+    for (const job of jobs) {
+      const { w, h } = job.size;
+      const name = lang === 'en' ? `${job.kind}.en` : job.kind;
+      const htmlPath = path.join(BUILD, 'appstore', `${name}.html`);
+      const shot = path.join(BUILD, 'appstore', `${name}.raw.png`);
+      const out = path.join(OUT, 'appstore', `${name}.png`);
+      mkdirp(path.dirname(htmlPath));
+      mkdirp(path.dirname(out));
+      fs.writeFileSync(htmlPath, await job.make(T, lang === 'en' ? fontsEn : fonts, A, lang));
+      await screenshot(htmlPath, shot, w, h);
+      // Apple refuses transparency: opaque RGB. The PNG is palette-quantized to stay small (the grain needs dither).
+      await sharp(shot)
+        .flatten({ background: '#faf2e9' })
+        .removeAlpha()
+        .png({ palette: true, colours: 256, dither: 1.0, effort: 10, compressionLevel: 9 })
+        .toFile(out);
+      assertSize(out, w, h);
+      console.log(`  ${path.relative(ROOT, out)}  ${Math.round(fs.statSync(out).size / 1024)} KB`);
+      if (check) report(`appstore/${name}`, SLIDE_FONTS[lang].slice(0, 1), await measure(htmlPath, w, h), w, h, job.safe);
     }
   }
 }
@@ -845,6 +951,7 @@ async function main() {
   // The zh-TW screenshots and both feature graphics (the en one needs Playfair from this set).
   const copy = [
     ...SLIDES.flatMap((s) => [s.copy['zh-TW'], s.tabletCopy?.['zh-TW']].flatMap((c) => (c ? [c.headline, c.subline] : []))),
+    ...assetCopy('zh-TW'),
     TAGLINE.text,
     TAGLINE_EN.text,
     BRAND.latin,
@@ -860,7 +967,11 @@ async function main() {
         ])
       : '';
   // The English screenshots: Playfair Display for the headline, DM Sans for the subline, Latin glyphs only.
-  const copyEn = [...SLIDES.flatMap((s) => [s.copy.en, s.tabletCopy?.en].flatMap((c) => (c ? [c.headline, c.subline] : []))), ' 0123456789'].join('');
+  const copyEn = [
+    ...SLIDES.flatMap((s) => [s.copy.en, s.tabletCopy?.en].flatMap((c) => (c ? [c.headline, c.subline] : []))),
+    ...assetCopy('en'),
+    ' 0123456789',
+  ].join('');
   const fontsEn =
     langs.includes('en') && (screens.length || run.includes('header'))
       ? await embeddedFonts([
