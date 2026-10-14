@@ -85,6 +85,27 @@ import Testing
         #expect(ends(0, 301) == [false, false])
     }
 
+    @Test func theHeadingBeingReadIsTheLastWhoseTopHasPassedTheReadingLine() {
+        let headings = [TocReading.Heading(index: 2, top: 400), TocReading.Heading(index: 5, top: 900),
+                        TocReading.Heading(index: 7, top: 1300)]
+        // The line is 96 under the bar's bottom edge: nothing before the first heading passes it.
+        #expect(TocReading.current(headings, visibleTop: 0) == nil)
+        #expect(TocReading.current(headings, visibleTop: 304) == nil)
+        #expect(TocReading.current(headings, visibleTop: 305) == 2)
+        #expect(TocReading.current(headings, visibleTop: 900) == 5)
+        #expect(TocReading.current(headings, visibleTop: 5000) == 7)
+        #expect(TocReading.current([], visibleTop: 500) == nil)
+    }
+
+    @Test func theMarkedRowRestsAThirdDownTheListHeldToItsEnds() {
+        // 300 of list showing: a row at 400 rests at 100 from the top.
+        #expect(TocReading.followOffset(rowTop: 400, visible: 300, range: 600) == 300)
+        // Near either end the list goes no further than it can.
+        #expect(TocReading.followOffset(rowTop: 40, visible: 300, range: 600) == 0)
+        #expect(TocReading.followOffset(rowTop: 880, visible: 300, range: 600) == 600)
+        #expect(TocReading.followOffset(rowTop: 400, visible: 300, range: -5) == 0)
+    }
+
     // MARK: The writer
 
     @Test func theToolbarWaveTakesATurnPerEightyPoints() {

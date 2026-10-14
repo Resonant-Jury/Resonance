@@ -17,6 +17,7 @@ public struct StoryMarkdownView<Embed: View, LinkCard: View>: View {
     let embed: (_ href: String, _ title: String) -> Embed
     let linkCard: (_ href: String?, _ text: String) -> LinkCard?
     var anchorsHeadings = false
+    var headingSpace: String?
 
     public init(blocks: [StoryBlock], onOpenURL: @escaping (URL) -> Void,
                 @ViewBuilder embed: @escaping (_ href: String, _ title: String) -> Embed,
@@ -28,16 +29,30 @@ public struct StoryMarkdownView<Embed: View, LinkCard: View>: View {
     }
 
     public var body: some View {
-        BlockStack(blocks: blocks, style: .body, onOpenURL: onOpenURL, embed: embed, linkCard: linkCard, anchors: anchorsHeadings)
+        BlockStack(blocks: blocks, style: .body, onOpenURL: onOpenURL, embed: embed, linkCard: linkCard, anchors: anchorsHeadings,
+                   headingSpace: headingSpace)
     }
 
     /// Each heading among the story's own blocks (not inside a quote or a list) carries a
     /// ``StoryHeadingAnchor`` for a `ScrollViewReader` to scroll to (the card page's table of
-    /// contents), set ``StoryHeadingAnchor/margin`` above the heading.
-    public func anchoringHeadings() -> Self {
+    /// contents), set ``StoryHeadingAnchor/margin`` above the heading. With `space` (a named
+    /// coordinate space around the story), each heading's top in it goes up as ``StoryHeadingTops``
+    /// — where the headings are, for marking the one being read.
+    public func anchoringHeadings(in space: String? = nil) -> Self {
         var view = self
         view.anchorsHeadings = true
+        view.headingSpace = space
         return view
+    }
+}
+
+/// The tops of a story's own headings in the coordinate space ``StoryMarkdownView/anchoringHeadings(in:)``
+/// names, by their place among the story's blocks.
+public nonisolated struct StoryHeadingTops: PreferenceKey {
+    public static let defaultValue: [Int: CGFloat] = [:]
+
+    public static func reduce(value: inout [Int: CGFloat], nextValue: () -> [Int: CGFloat]) {
+        value.merge(nextValue()) { $1 }
     }
 }
 
@@ -68,6 +83,7 @@ struct BlockStack<Embed: View, LinkCard: View>: View {
     let embed: (String, String) -> Embed
     let linkCard: (String?, String) -> LinkCard?
     var anchors = false
+    var headingSpace: String?
 
     var body: some View {
         // CSS px at the reader's 17pt, grown with the text.
@@ -81,7 +97,16 @@ struct BlockStack<Embed: View, LinkCard: View>: View {
                     // with the heading's gap shortened by as much, so nothing moves.
                     let margin = StoryHeadingAnchor.margin
                     ZStack(alignment: .topLeading) {
-                        view.padding(.top, margin)
+                        view
+                            .background {
+                                if let headingSpace {
+                                    GeometryReader { geo in
+                                        Color.clear.preference(key: StoryHeadingTops.self,
+                                                               value: [i: geo.frame(in: .named(headingSpace)).minY])
+                                    }
+                                }
+                            }
+                            .padding(.top, margin)
                         Color.clear.frame(width: 1, height: 1)
                             .id(StoryHeadingAnchor(index: i))
                             .accessibilityHidden(true)

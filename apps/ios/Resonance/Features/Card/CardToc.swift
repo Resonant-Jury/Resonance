@@ -23,6 +23,39 @@ struct TocEntry: Equatable, Identifiable {
     }
 }
 
+/// Which heading is being read, and where the table of contents scrolls to show it (the web's
+/// CardToc, number for number).
+nonisolated enum TocReading {
+    struct Heading: Equatable {
+        /// Its block's place in the story.
+        let index: Int
+        /// Its top in the page.
+        let top: CGFloat
+    }
+
+    /// The reading line: this far under the bar's bottom edge, just under the header.
+    static let line: CGFloat = 96
+    /// The marked row comes to rest this share of the list's visible height from its top.
+    static let restAt: CGFloat = 1.0 / 3
+    /// How long a heading chosen by a tap stays marked at most while the page scrolls to it.
+    static let choiceHold: Double = 1.0
+    /// The list's own scroll to the marked row.
+    static let followDuration: Double = 0.25
+
+    /// The last heading whose top has passed the reading line (`visibleTop`: the page's y at the
+    /// bar's bottom edge); none before the first has.
+    static func current(_ headings: [Heading], visibleTop: CGFloat) -> Int? {
+        let line = visibleTop + Self.line
+        return headings.last(where: { $0.top < line })?.index
+    }
+
+    /// The list's offset that rests a row whose top is `rowTop` (in the list's content) a third of
+    /// the way down `visible`, held to the list's ends.
+    static func followOffset(rowTop: CGFloat, visible: CGFloat, range: CGFloat) -> CGFloat {
+        min(max(rowTop - visible * restAt, 0), max(0, range))
+    }
+}
+
 /// Where a scroller's thumb stands on a track `track` tall (scrollbarGeometry.ts `thumbGeometry`): as
 /// long as the share of the content in view (at least 36, at most the track), as far down the track
 /// as the scroller is down its range. Nil when there's nothing worth a bar: a range of 6 or less,
@@ -64,9 +97,14 @@ struct ScrollThumb: Equatable {
 /// in view, running down it as the list scrolls; it can be dragged, and a tap on the rule above or
 /// below it moves the list a page. The list fades out at the end it can still scroll toward. The
 /// drawn rule is hidden from VoiceOver, which has the list itself.
+///
+/// The heading being read is marked in terracotta (``TocReading``, from the page's `meter`), and as
+/// it changes the list scrolls itself to rest its row a third of the way down — the stretch on the
+/// rule following — unless the reader is moving the list or the stretch.
 struct CardToc: View {
     let entries: [TocEntry]
     let title: String
+    let meter: ReadingMeter
     let onPick: (TocEntry) -> Void
 
     /// The rule's wave: its depth, and the column it takes (both sides of the wave, the pen, 2 of air).
@@ -75,7 +113,8 @@ struct CardToc: View {
     /// A tap on the rule beside the stretch moves the list this share of what shows.
     static let page: CGFloat = 0.9
     /// The fade at an end the list can still scroll toward.
-    static let fade: CGFloat = 36
+    static let fade: CGFloat = 16
+    private static let listSpace = "card.toc.list"
 
     private struct Metrics: Equatable {
         var offset: CGFloat = 0
@@ -89,6 +128,10 @@ struct CardToc: View {
     @State private var grab: CGFloat?
     /// The drag began on the stretch (a drag) or beside it (a tap: a page).
     @State private var pressed = false
+    /// Each row's top in the list's content, by its heading's place in the story.
+    @State private var rowTops: [Int: CGFloat] = [:]
+    /// The reader has the list under a finger (or it is still coasting from one).
+    @State private var listMoving = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var track: CGFloat { metrics.visible }
@@ -110,26 +153,42 @@ struct CardToc: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(title)
+        .onChange(of: meter.readingHeading, initial: true) { _, reading in follow(reading) }
+    }
+
+    /// The list scrolls itself to rest the marked row a third of the way down (smoothly, at once
+    /// when motion is reduced) — not while the reader moves the list or the stretch.
+    private func follow(_ reading: Int?) {
+        guard let reading, grab == nil, !listMoving, let top = rowTops[reading],
+              metrics.content - metrics.visible > 1 else { return }
+        let to = TocReading.followOffset(rowTop: top, visible: metrics.visible, range: metrics.content - metrics.visible)
+        guard abs(to - metrics.offset) > 1 else { return }
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: TocReading.followDuration)) { position.scrollTo(y: to) }
     }
 
     private var list: some View {
-        ScrollView {
+        let reading = meter.readingHeading
+        return ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(entries) { entry in
                     Button { onPick(entry) } label: {
                         Text(entry.text)
                     }
-                    .buttonStyle(TocLinkStyle(text: entry.text))
+                    .buttonStyle(TocLinkStyle(text: entry.text, current: entry.index == reading))
                     .accessibilityLabel(entry.text)
+                    .accessibilityAddTraits(entry.index == reading ? .isSelected : [])
                     .padding(.leading, entry.level == 3 ? 12 : 0)
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.listSpace)).minY } action: { rowTops[entry.index] = $0 }
                 }
             }
             .padding(.leading, 6)
             // Room for the press, which the scroller would otherwise clip, as the web's 2 / 4.
             .padding(.vertical, 2)
             .padding(.trailing, 4)
+            .coordinateSpace(.named(Self.listSpace))
         }
         .scrollPosition($position)
+        .onScrollPhaseChange { _, phase in listMoving = phase == .interacting || phase == .decelerating }
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize)
         .onScrollGeometryChange(for: Metrics.self) { geo in
@@ -196,15 +255,16 @@ struct CardToc: View {
     }
 }
 
-/// A heading of the table of contents: 14 on a 1.45 line, muted, 4 above and below; terracotta under
-/// the finger (the web's hover).
+/// A heading of the table of contents: 14 on a 1.45 line, muted, 4 above and below; terracotta while
+/// it is the one being read (the weight unchanged), and under the finger (the web's hover).
 private struct TocLinkStyle: ButtonStyle {
     /// Set in a CSS line box (a label's words can't be read back out of it).
     let text: String
+    var current = false
 
     func makeBody(configuration: Configuration) -> some View {
         CSSText(text, font: AppFonts.scaledUIFont(.body, size: 14), lineHeight: 1.45,
-                color: UIColor(configuration.isPressed ? Tokens.terracotta : Tokens.textMuted))
+                color: UIColor(current || configuration.isPressed ? Tokens.terracotta : Tokens.textMuted))
             .padding(.vertical, 4)
             .contentShape(Rectangle())
     }

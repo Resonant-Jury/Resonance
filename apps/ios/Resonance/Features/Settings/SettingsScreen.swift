@@ -48,27 +48,20 @@ enum SettingsSection: Hashable, CaseIterable {
 }
 
 /// Settings (SettingsClient's menu): one row per section — glyph, name, chevron — between wavy
-/// rules, each opening its own screen. No panels: the web drops the frames at this width. On a phone
-/// the bar names the page beside its arrow, as a section's bar does, and the rows start under it as
-/// Messages' list does; with the tabs in a tablet's header the page keeps its own heading.
+/// rules, each opening its own screen. No panels: the web drops the frames at this width. The bar
+/// names the page as a section's bar does — beside its arrow on a phone, in the middle of a tablet's
+/// header as any pushed page's context — and the rows start under it as Messages' list does.
 struct SettingsScreen: View {
     @Environment(\.openRoute) private var openRoute
-    @Environment(\.window) private var window
     @State private var scrolled = false
 
-    /// How far under the bar's foot a phone's settings start: the Messages list's (TabScreen's `phoneTop`).
-    static let phoneTop: CGFloat = 16
+    /// How far under the bar's foot the settings start, on a phone and a tablet alike: the Messages
+    /// list's (TabScreen's `phoneTop`, which a tablet's two-pane list keeps too).
+    static let contentTop: CGFloat = 16
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                if window.topTabs {
-                    Text(L10n.Settings.title)
-                        .font(AppFonts.heading(28))
-                        .foregroundStyle(Tokens.text)
-                        .accessibilityAddTraits(.isHeader)
-                        .padding(.bottom, 18)
-                }
                 ForEach(SettingsSection.allCases, id: \.self) { section in
                     if section != SettingsSection.allCases.first {
                         WavyDivider(seed: Double(40 + section.webIndex * 6)).padding(.vertical, 2)
@@ -77,14 +70,14 @@ struct SettingsScreen: View {
                 }
             }
             .padding([.horizontal, .bottom], 20)
-            .headerGap(phone: Self.phoneTop)
+            .padding(.top, Self.contentTop)
             .padding(.bottom, 40)
             .readableColumn()
         }
         .onHeaderScroll($scrolled)
         .background(Tokens.cream)
         .safeAreaInset(edge: .top, spacing: 0) {
-            OrganicInlineBar(window.topTabs ? "" : L10n.Settings.title, backLabel: L10n.App.Nav.back, scrolled: scrolled)
+            OrganicInlineBar(L10n.Settings.title, backLabel: L10n.App.Nav.back, scrolled: scrolled)
         }
         .toolbar(.hidden, for: .navigationBar)
     }
@@ -129,7 +122,7 @@ struct SettingsSectionScreen: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding([.horizontal, .bottom], 20)
-            .headerGap(phone: SettingsScreen.phoneTop)
+            .padding(.top, SettingsScreen.contentTop)
             .padding(.bottom, 40)
             .readableColumn()
         }

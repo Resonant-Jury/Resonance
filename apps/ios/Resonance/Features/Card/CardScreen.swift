@@ -68,7 +68,8 @@ struct CardScreen: View {
         return VStack(alignment: .leading, spacing: 28) {
             CardAuthorRail(card: card, anonymous: model.detail?.anonymous ?? card.anonymous, isOwner: model.detail?.isOwner ?? false)
             if !toc.isEmpty {
-                CardToc(entries: toc, title: L10n.Card.toc) { entry in
+                CardToc(entries: toc, title: L10n.Card.toc, meter: meter) { entry in
+                    meter.choose(entry.index)
                     // The heading 16 under the bar's line (the web's scroll-margin-top), smoothly unless motion is reduced.
                     withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4)) {
                         proxy.scrollTo(StoryHeadingAnchor(index: entry.index), anchor: .top)
@@ -123,6 +124,10 @@ struct CardScreen: View {
         // Where the byline ends: its 16 of air and the 44 avatar.
         .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 60 } action: { _, gone in
             withAnimation(.easeOut(duration: 0.2)) { bylineGone = gone }
+        }
+        // A heading chosen in the table of contents is held marked until the scroll there ends.
+        .onScrollPhaseChange { old, new in
+            if new == .idle, old != .idle { meter.scrollSettled() }
         }
         .scrollIndicators(.hidden)
     }
@@ -215,8 +220,15 @@ struct CardScreen: View {
                                              openLabel: L10n.Card.LinkPreview.open(host: host)) { openPreview(preview) }
                     }
                 }
-                // Its headings are where the rail's table of contents takes the page.
-                .anchoringHeadings()
+                // Its headings are where the rail's table of contents takes the page, and where they
+                // are says which one is being read.
+                .anchoringHeadings(in: Self.pageSpace)
+                .onPreferenceChange(StoryHeadingTops.self) { tops in
+                    let wanted = Set(model.toc.map(\.index))
+                    meter.headings = tops.filter { wanted.contains($0.key) }
+                        .map { TocReading.Heading(index: $0.key, top: $0.value) }
+                        .sorted { $0.top < $1.top }
+                }
                 // The story block alone (not the cover, title or what follows) is what the progress measures.
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.pageSpace)) } action: { meter.story = $0 }
                 .padding(.bottom, 32)
@@ -580,8 +592,39 @@ final class ReadingMeter {
     /// The article title's bottom in the page (round 5 C1: a tablet's header names the card past it).
     var titleBottom: CGFloat? { didSet { update() } }
     var viewport = Viewport(top: 0, height: 0) { didSet { update() } }
+    /// The table of contents' headings by their tops in the page, in reading order.
+    var headings: [TocReading.Heading] = [] { didSet { update() } }
     private(set) var progress: CGFloat?
     private(set) var titleGone = false
+    /// The heading being read (its block's place in the story), for the table of contents to mark;
+    /// only the table of contents reads it.
+    private(set) var readingHeading: Int?
+    /// The heading a tap on the table of contents chose, marked while the page scrolls to it.
+    private var chosen: Int? { didSet { update() } }
+    @ObservationIgnored private var chosenAt: Date?
+    @ObservationIgnored private var chosenToken = 0
+
+    /// A heading tapped in the table of contents is marked at once and stays marked while the page
+    /// scrolls to it — until the scroll ends, or a second at most — so those it passes on the way
+    /// don't light up in turn.
+    func choose(_ index: Int) {
+        chosenToken += 1
+        let mine = chosenToken
+        chosenAt = .now
+        chosen = index
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(TocReading.choiceHold))
+            guard let self, self.chosenToken == mine else { return }
+            self.chosen = nil
+        }
+    }
+
+    /// The page stopped scrolling: a choice the scroll was taking the reader to has arrived.
+    func scrollSettled() {
+        guard chosen != nil, let at = chosenAt, Date.now.timeIntervalSince(at) > 0.15 else { return }
+        chosenToken += 1
+        chosen = nil
+    }
 
     private func update() {
         let p = ReadingProgress.of(storyTop: story.minY, storyHeight: story.height, visibleTop: viewport.top,
@@ -589,6 +632,8 @@ final class ReadingMeter {
         if p != progress { progress = p }
         let gone = HeaderContext.shown(headingBottom: titleBottom, visibleTop: viewport.top)
         if gone != titleGone { titleGone = gone }
+        let reading = chosen ?? TocReading.current(headings, visibleTop: viewport.top)
+        if reading != readingHeading { readingHeading = reading }
     }
 }
 
