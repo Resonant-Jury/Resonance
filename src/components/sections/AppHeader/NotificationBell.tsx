@@ -13,6 +13,7 @@ import styles from './NotificationBell.module.css';
 import type { Notification } from '@/lib/db/types';
 import { useNotifications } from '@/lib/data/hooks';
 import { markNotificationRead } from '@/lib/db/firestore/client/notifications';
+import { useEdgeFades } from '@/lib/hooks/useEdgeFades';
 import { bellHref } from './bellLink';
 
 export function NotificationBell() {
@@ -29,6 +30,7 @@ export function NotificationBell() {
   const fetched = live.data !== undefined || live.error !== null;
   // Long lists scroll inside the modal (hidden native bar + hand-drawn rail).
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollEdges = useEdgeFades(scrollRef);
 
   const tApp = useTranslations('app.notifications');
   const tNav = useTranslations('app.nav');
@@ -120,7 +122,7 @@ export function NotificationBell() {
           <EmptyState icon="bell" seed={37} titleAs="p" title={tApp('emptyTitle')} line={tApp('empty')} />
         )}
         <div className={styles.scrollArea}>
-          <div ref={scrollRef} className={`${styles.scrollBody} ${organicScrollTarget}`}>
+          <div ref={scrollEdges} className={`${styles.scrollBody} ${organicScrollTarget}`}>
             <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' }}>
               {items.map((n, i) => {
                 const isUnread = n.readAt === null;

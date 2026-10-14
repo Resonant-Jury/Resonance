@@ -28,7 +28,8 @@ export interface AvatarUploadProps {
   onUploaded: (url: string) => void | Promise<void>;
 }
 
-const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif';
+// Any picture the browser can read: the crop dialog decodes it (or says it can't) and sends a JPEG square.
+const ACCEPT = 'image/*';
 
 /**
  * A large, click- or drag-to-upload avatar block for the profile editor. The

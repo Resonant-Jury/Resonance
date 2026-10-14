@@ -104,6 +104,25 @@ textarea::placeholder {
   *::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
 }
 
+/* ── Scroll edge fades ───────────────────────────────────────────
+   A list scrolling inside a dialog or a popover fades a little on the side it
+   can still scroll toward (useEdgeFades) — a short passage, not a frame. The
+   drawn bar beside it (OrganicScrollbar) is a sibling, so it stays whole. */
+[data-edge-fade-top] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 16px);
+  mask-image: linear-gradient(to bottom, transparent, #000 16px);
+}
+
+[data-edge-fade-bottom] {
+  -webkit-mask-image: linear-gradient(to top, transparent, #000 16px);
+  mask-image: linear-gradient(to top, transparent, #000 16px);
+}
+
+[data-edge-fade-top][data-edge-fade-bottom] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+}
+
 /* ── Organic shape entrance ──────────────────────────────────────────
    Hand-drawn SVGs only mount once their host has been measured, so they
    appear after the surrounding chrome. A short fade keeps that arrival from

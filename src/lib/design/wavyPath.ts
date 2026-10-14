@@ -131,3 +131,15 @@ export function pointsToBezier(pts: [number, number][]): string {
   }
   return out;
 }
+
+/**
+ * How many turns a hand-drawn rule running across a box `width` px wide takes:
+ * one per ~80px, 4 at the fewest and 12 at the most — so a phone's rule isn't a
+ * desktop's ten turns squeezed into a third of the room (which reads forced),
+ * and a wide one doesn't stretch a few turns flat. The writer's toolbar wave
+ * uses it on the web and in both apps (StoryEditor's ToolbarWave / toolbarWave).
+ */
+export function ruleSteps(width: number): number {
+  if (!(width > 0)) return 10;
+  return Math.min(12, Math.max(4, Math.round(width / 80)));
+}

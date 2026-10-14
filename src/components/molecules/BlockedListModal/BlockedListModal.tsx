@@ -11,6 +11,7 @@ import { useAuth } from '@/components/providers/AuthProvider';
 import { listMyBlocks, unblockUser } from '@/lib/db/firestore/client/blocks';
 import { getUsersByIds } from '@/lib/db/firestore/client/reads';
 import { EmptyState } from '@/components/molecules/EmptyState/EmptyState';
+import { useEdgeFades } from '@/lib/hooks/useEdgeFades';
 import styles from './BlockedListModal.module.css';
 
 export interface BlockedListModalProps {
@@ -26,6 +27,7 @@ export function BlockedListModal({ open, onClose }: BlockedListModalProps) {
   const { user } = useAuth();
   const { mutate: globalMutate } = useSWRConfig();
   const [pending, setPending] = useState<string | null>(null);
+  const listEdges = useEdgeFades<HTMLUListElement>();
 
   const { data, mutate } = useSWR(open && user ? `blocklist:${user.id}` : null, async () => {
     const blocks = await listMyBlocks();
@@ -60,7 +62,7 @@ export function BlockedListModal({ open, onClose }: BlockedListModalProps) {
       <p className={styles.subtitle}>{t('subtitle')}</p>
       {data && data.length === 0 && <EmptyState icon="ban" seed={61} line={t('empty')} />}
       {data && data.length > 0 && (
-        <ul className={styles.list}>
+        <ul ref={listEdges} className={styles.list}>
           {data.map((row, i) => (
             <Fragment key={row.uid}>
               {i > 0 && <Divider seed={100 + i * 7} spacing={2} />}

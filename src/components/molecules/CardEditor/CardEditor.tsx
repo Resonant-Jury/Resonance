@@ -11,7 +11,7 @@ import { HandDrawnDashedSurface } from '@/components/atoms/HandDrawnDashedBorder
 import { HandDrawnImage } from '@/components/atoms/HandDrawnImage/HandDrawnImage';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { MarkdownEditor } from '@/components/molecules/MarkdownEditor/MarkdownEditor';
-import { uploadImageFile } from '@/lib/images/upload';
+import { UnsupportedImage, uploadImageFile } from '@/lib/images/upload';
 import { extractAccentHue } from '@/lib/images/accentHue';
 import { useRef } from 'react';
 import { INK } from '@/lib/design/strokes';
@@ -633,8 +633,8 @@ export function CardEditor({
       setMedia({ type: 'image', url: publicUrl, label: file.name });
       // Read the hue from the local file — no extra fetch, no CORS involved.
       setAccentHue(await extractAccentHue(file));
-    } catch {
-      setUploadError(t('mediaUploadError'));
+    } catch (e) {
+      setUploadError(t(e instanceof UnsupportedImage ? 'mediaUnsupported' : 'mediaUploadError'));
     } finally {
       setUploading(false);
     }
@@ -770,7 +770,7 @@ export function CardEditor({
                   </span>
                   <input
                     type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    accept="image/*"
                     onChange={(e) => {
                       const file = e.currentTarget.files?.[0];
                       if (file) void uploadImage(file);

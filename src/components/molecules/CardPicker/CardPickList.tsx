@@ -8,6 +8,7 @@ import { OrganicScrollbar, organicScrollTarget } from '@/components/atoms/Organi
 import { wobRect } from '@/lib/design/wobRect';
 import { INK } from '@/lib/design/strokes';
 import type { Card } from '@/lib/db/types';
+import { useEdgeFades } from '@/lib/hooks/useEdgeFades';
 import styles from './CardPickList.module.css';
 
 export interface CardPickListProps {
@@ -70,6 +71,7 @@ export function CardPickList({
   footnote,
 }: CardPickListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollEdges = useEdgeFades(scrollRef);
   const choosing = selectedId !== undefined;
   const locale = useLocale();
   const dateOf = useMemo(() => pickDate(locale), [locale]);
@@ -78,7 +80,7 @@ export function CardPickList({
 
   return (
     <div className={styles.listArea}>
-      <div ref={scrollRef} className={`${styles.scroll} ${organicScrollTarget}`}>
+      <div ref={scrollEdges} className={`${styles.scroll} ${organicScrollTarget}`}>
         {lead}
         {cards.length === 0 ? (
           empty ? (

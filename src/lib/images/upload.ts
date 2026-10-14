@@ -1,4 +1,6 @@
-import { compressImage } from './compress';
+import { compressImage, UnsupportedImage } from './compress';
+
+export { UnsupportedImage };
 import { UPLOAD_MAX_FILE_BYTES } from './limits';
 
 /**
@@ -19,9 +21,10 @@ export class UploadTooLarge extends Error {
  * Shared client upload path for user images: compress in the browser, then
  * send to our own API route, which re-encodes the picture and stores it in R2
  * (the browser never contacts the storage host directly). `purpose: 'avatar'`
- * marks a profile photo, which the server scales to 256 px. Throws
- * UploadTooLarge before sending what the route would refuse (413), and on a
- * non-OK response.
+ * marks a profile photo, which the server scales to 256 px. Any picture the
+ * browser can read goes (compressImage turns it into a format the server
+ * takes); throws UnsupportedImage for one it can't, UploadTooLarge before
+ * sending what the route would refuse (413), and on a non-OK response.
  */
 export async function uploadImageFile(
   file: File,

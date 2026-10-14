@@ -797,6 +797,8 @@ public enum L10n {
             public static var imageUploading: String { Strings.shared.string("write.editor.imageUploading") }
             /// Couldn’t upload the image — please try again
             public static var imageUploadError: String { Strings.shared.string("write.editor.imageUploadError") }
+            /// Couldn’t read this image — try a JPG or PNG
+            public static var imageUnsupported: String { Strings.shared.string("write.editor.imageUnsupported") }
             /// Remove image
             public static var removeImage: String { Strings.shared.string("write.editor.removeImage") }
             /// Remove card
@@ -832,10 +834,12 @@ public enum L10n {
         public static var mediaRemove: String { Strings.shared.string("write.mediaRemove") }
         /// Add an image
         public static var mediaPlaceholder: String { Strings.shared.string("write.mediaPlaceholder") }
-        /// PNG, JPG, WebP · up to 4MB
+        /// Any common image format · resized for you on upload
         public static var mediaHint: String { Strings.shared.string("write.mediaHint") }
         /// Couldn’t upload the image — please try again
         public static var mediaUploadError: String { Strings.shared.string("write.mediaUploadError") }
+        /// Couldn’t read this image — try a JPG or PNG
+        public static var mediaUnsupported: String { Strings.shared.string("write.mediaUnsupported") }
         /// Sketching it in…
         public static var mediaUploading: String { Strings.shared.string("write.mediaUploading") }
         /// Generate

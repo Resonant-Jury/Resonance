@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { penWave, penWavePoints, penWaveTile, penWaveTilePoints, wavyLine, wavyVertical, wavyPoints, pointsToBezier } from './wavyPath';
+import { penWave, penWavePoints, penWaveTile, penWaveTilePoints, wavyLine, wavyVertical, wavyPoints, pointsToBezier, ruleSteps } from './wavyPath';
 
 // Wavy paths are used as dividers and section edges. The contract that matters
 // downstream: deterministic per seed, endpoints pinned to the axis (so tiles
@@ -92,5 +92,18 @@ describe('penWaveTile', () => {
   it('is the same tile for the same seed, another for another', () => {
     expect(penWaveTile(36, 3)).toBe(penWaveTile(36, 3));
     expect(penWaveTile(36, 3)).not.toBe(penWaveTile(36, 4));
+  });
+});
+
+describe('ruleSteps', () => {
+  it('gives a rule one turn per ~80px, between 4 and 12', () => {
+    expect(ruleSteps(340)).toBe(4);
+    expect(ruleSteps(400)).toBe(5);
+    expect(ruleSteps(760)).toBe(10);
+    expect(ruleSteps(2000)).toBe(12);
+  });
+
+  it('keeps the old ten turns until the box is measured', () => {
+    expect(ruleSteps(0)).toBe(10);
   });
 });

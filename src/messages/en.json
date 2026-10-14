@@ -448,6 +448,7 @@
       "insertImage": "Insert image",
       "imageUploading": "Uploading image…",
       "imageUploadError": "Couldn’t upload the image — please try again",
+      "imageUnsupported": "Couldn’t read this image — try a JPG or PNG",
       "removeImage": "Remove image",
       "removeCard": "Remove card",
       "cardModal": {
@@ -467,8 +468,9 @@
     "mediaLabel": "Image (optional)",
     "mediaRemove": "Remove image",
     "mediaPlaceholder": "Add an image",
-    "mediaHint": "PNG, JPG, WebP · up to 4MB",
+    "mediaHint": "Any common image format · resized for you on upload",
     "mediaUploadError": "Couldn’t upload the image — please try again",
+    "mediaUnsupported": "Couldn’t read this image — try a JPG or PNG",
     "mediaUploading": "Sketching it in…",
     "mediaGenerate": "Generate",
     "mediaGenerateHint": "An image from your story",

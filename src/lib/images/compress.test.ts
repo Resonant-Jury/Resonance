@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compressImage, fitWithin, replaceExtension } from './compress';
+import { compressImage, fitWithin, replaceExtension, UnsupportedImage } from './compress';
 
 describe('fitWithin', () => {
   it('caps the longest edge and keeps aspect ratio', () => {
@@ -37,5 +37,12 @@ describe('compressImage', () => {
   it('returns the original file when decoding fails', async () => {
     const broken = new File([new Uint8Array([0, 1, 2])], 'broken.png', { type: 'image/png' });
     await expect(compressImage(broken)).resolves.toBe(broken);
+  });
+});
+
+describe('compressImage, formats the browser reads or not', () => {
+  it('refuses a picture it cannot read when the server would not take it either (a HEIC outside Safari)', async () => {
+    const heic = new File([new Uint8Array([0, 0, 0, 24])], 'IMG_0001.HEIC', { type: 'image/heic' });
+    await expect(compressImage(heic)).rejects.toBeInstanceOf(UnsupportedImage);
   });
 });

@@ -58,6 +58,7 @@ import {
   type Camera,
 } from './mapMath';
 import { NODE_CHALK_SEEDS, ThoughtMapNode, nodeHue, type ThoughtMapNodeProps } from './ThoughtMapNode';
+import { useEdgeFades } from '@/lib/hooks/useEdgeFades';
 import styles from './ThoughtMap.module.css';
 
 const GROUP_HUES = [88, 215, 290, 140, 55, 18];
@@ -190,6 +191,8 @@ export function ThoughtMapCanvas({
   const router = useRouter();
   const isMobile = useIsMobile(640);
 
+  // The tray's list fades a little at the edge it can still scroll toward.
+  const trayEdges = useEdgeFades<HTMLDivElement>();
   const [nodes, setNodes] = useState<Record<string, NodeState>>(() =>
     Object.fromEntries(
       data.nodes.map((n) => [
@@ -1349,7 +1352,7 @@ export function ThoughtMapCanvas({
         >
         <div className={styles.tray}>
           <HandDrawnDashedSurface seed={29} state="idle" fillColor="var(--color-card-bg)">
-            <div className={styles.trayInner}>
+            <div ref={trayEdges} className={styles.trayInner}>
               <div className={styles.trayTitle}>{t('trayTitle')}</div>
               <Divider seed={31} spacing={4} />
               {trayCards.length === 0 ? (

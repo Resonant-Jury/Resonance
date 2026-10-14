@@ -799,6 +799,8 @@ object L10n {
             val imageUploading: String get() = Strings.string("write.editor.imageUploading")
             /** Couldn’t upload the image — please try again */
             val imageUploadError: String get() = Strings.string("write.editor.imageUploadError")
+            /** Couldn’t read this image — try a JPG or PNG */
+            val imageUnsupported: String get() = Strings.string("write.editor.imageUnsupported")
             /** Remove image */
             val removeImage: String get() = Strings.string("write.editor.removeImage")
             /** Remove card */
@@ -834,10 +836,12 @@ object L10n {
         val mediaRemove: String get() = Strings.string("write.mediaRemove")
         /** Add an image */
         val mediaPlaceholder: String get() = Strings.string("write.mediaPlaceholder")
-        /** PNG, JPG, WebP · up to 4MB */
+        /** Any common image format · resized for you on upload */
         val mediaHint: String get() = Strings.string("write.mediaHint")
         /** Couldn’t upload the image — please try again */
         val mediaUploadError: String get() = Strings.string("write.mediaUploadError")
+        /** Couldn’t read this image — try a JPG or PNG */
+        val mediaUnsupported: String get() = Strings.string("write.mediaUnsupported")
         /** Sketching it in… */
         val mediaUploading: String get() = Strings.string("write.mediaUploading")
         /** Generate */

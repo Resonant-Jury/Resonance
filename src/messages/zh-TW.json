@@ -448,6 +448,7 @@
       "insertImage": "插入圖片",
       "imageUploading": "圖片上傳中⋯",
       "imageUploadError": "圖片上傳失敗，請再試一次",
+      "imageUnsupported": "讀不出這張圖片，請換成 JPG 或 PNG",
       "removeImage": "移除圖片",
       "removeCard": "移除卡片",
       "cardModal": {
@@ -467,8 +468,9 @@
     "mediaLabel": "搭配一張圖片（選填）",
     "mediaRemove": "移除圖片",
     "mediaPlaceholder": "加一張圖片",
-    "mediaHint": "PNG、JPG、WebP，最大 4MB",
+    "mediaHint": "常見的圖片格式都可以，上傳時會自動壓縮",
     "mediaUploadError": "圖片上傳失敗，請稍後再試",
+    "mediaUnsupported": "讀不出這張圖片，請換成 JPG 或 PNG",
     "mediaUploading": "正在描繪中⋯",
     "mediaGenerate": "生成圖片",
     "mediaGenerateHint": "依故事內容構思畫面",

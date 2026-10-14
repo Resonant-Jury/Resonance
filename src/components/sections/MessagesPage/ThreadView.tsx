@@ -43,6 +43,7 @@ import { ThreadComposer } from './ThreadComposer';
 import { ThreadHeaderChrome } from './ThreadHeaderChrome';
 import { ThreadActionsContext, type PressedMessage, type ThreadActions } from './threadActions';
 import { centerRow, useThreadScroll } from './useThreadScroll';
+import { useEdgeFades } from '@/lib/hooks/useEdgeFades';
 import pageStyles from './MessagesPage.module.css';
 import styles from './Thread.module.css';
 
@@ -313,6 +314,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // The「卡片與連結」modal's scroll area (hand-drawn rail replaces the native bar).
   const mediaScrollRef = useRef<HTMLDivElement>(null);
+  const mediaEdges = useEdgeFades(mediaScrollRef);
 
   const rows = useMemo(() => threadRows(drawn), [drawn]);
   const newest = drawn[drawn.length - 1];
@@ -852,7 +854,7 @@ export function ThreadView({ handle, replyNote }: ThreadViewProps) {
                 <p className={pageStyles.quietNote}>{t('mediaEmpty')}</p>
               ) : (
                 <div className={pageStyles.mediaArea}>
-                  <div ref={mediaScrollRef} className={`${pageStyles.mediaBody} ${organicScrollTarget}`}>
+                  <div ref={mediaEdges} className={`${pageStyles.mediaBody} ${organicScrollTarget}`}>
                     {sharedCardKeys.length > 0 && (
                       <section>
                         <h4 className={pageStyles.mediaSection}>{t('mediaCards')}</h4>

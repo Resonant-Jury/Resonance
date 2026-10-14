@@ -1,6 +1,7 @@
 'use client';
 
-import { CSSProperties, ReactNode, useMemo, useRef } from 'react';
+import { CSSProperties, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { Skeleton } from '@/components/atoms/Skeleton/Skeleton';
 import { wobRect } from '@/lib/design/wobRect';
 import { useElementSize } from '@/lib/hooks/useElementSize';
 
@@ -46,6 +47,18 @@ export function OrganicImage({
 }: OrganicImageProps) {
   const ref = useRef<HTMLDivElement>(null);
   const { w, h } = useElementSize(ref, 320, Math.round(320 * ratio));
+  // While the picture is on its way its place shimmers (a story card tints the
+  // shimmer with its own hue, --skeleton-highlight), as in the apps — so a slow
+  // cover reads as loading, not as a card without one. The shimmer lies under
+  // the picture and goes once it has landed or failed; a picture the browser
+  // already had when the page hydrated is caught by `complete`.
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [settled, setSettled] = useState<string | null>(null);
+  useEffect(() => {
+    const img = imgRef.current;
+    if (src && img?.complete) setSettled(src);
+  }, [src]);
+  const shimmering = !!src && settled !== src;
 
   const mag = Math.min(w, h) * 0.05;
   // The wobble pushes the path both inward and outward of the box edge. The
@@ -81,12 +94,16 @@ export function OrganicImage({
       {/* Content bleeds past the box by `bleed` px so the clip's outward bulges
           land on image pixels rather than on empty space. */}
       <div style={{ position: 'absolute', inset: clip ? -bleed : 0 }}>
+        {shimmering && <Skeleton radius={0} height="100%" style={{ position: 'absolute', inset: 0 }} />}
         {src && (
           // Plain <img>: the surrounding clip-path + outward `bleed` mask the
           // image organically; next/image's wrapper/sizing fights that layout.
           // eslint-disable-next-line @next/next/no-img-element
           <img
+            ref={imgRef}
             src={src}
+            onLoad={() => setSettled(src)}
+            onError={() => setSettled(src)}
             alt={alt}
             loading={priority ? 'eager' : 'lazy'}
             decoding={priority ? undefined : 'async'}

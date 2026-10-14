@@ -11,9 +11,9 @@ import { Divider } from '@/components/atoms/Divider/Divider';
 import { Icon } from '@/components/atoms/Icon';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { storyLinkWaveStyle } from '@/lib/design/storyLinkWave';
-import { pointsToBezier, wavyPoints } from '@/lib/design/wavyPath';
+import { pointsToBezier, ruleSteps, wavyPoints } from '@/lib/design/wavyPath';
 import { useElementSize } from '@/lib/hooks/useElementSize';
-import { uploadImageFile } from '@/lib/images/upload';
+import { UnsupportedImage, uploadImageFile } from '@/lib/images/upload';
 import type { Card } from '@/lib/db/types';
 import { getMarkdown, storyExtensions } from '@/lib/markdown/editorSchema';
 import { OrganicImageNode } from './OrganicImageNode';
@@ -26,7 +26,8 @@ import { useOpenedOnce } from '@/lib/hooks/useOpenedOnce';
 // The card picker loads when it is first opened, not with the editor.
 const InsertCardModal = dynamic(() => import('./InsertCardModal').then((m) => m.InsertCardModal));
 
-const ACCEPTED_IMAGES = 'image/png,image/jpeg,image/webp,image/gif';
+// Any picture the browser can read: compressImage turns it into one the server takes.
+const ACCEPTED_IMAGES = 'image/*';
 
 // Same construction as AppHeader's wavy bottom edge: a stretchable mask that
 // fills the toolbar background down to a hand-drawn wave running the full
@@ -36,9 +37,12 @@ const TOOLBAR_BODY_H = 42;
 const TOOLBAR_WAVE_H = 12;
 const TOOLBAR_TOTAL_H = TOOLBAR_BODY_H + TOOLBAR_WAVE_H;
 
-function buildToolbarPaths(seed: number) {
+// The drawing is TOOLBAR_W wide and stretched to the toolbar's width, so its
+// turn count follows the width it is shown at (ruleSteps): a phone's toolbar
+// gets a few, a desktop's more.
+function buildToolbarPaths(seed: number, steps: number) {
   const baseY = TOOLBAR_BODY_H + TOOLBAR_WAVE_H * 0.35;
-  const pts = wavyPoints(TOOLBAR_W, baseY, 2, seed, 10);
+  const pts = wavyPoints(TOOLBAR_W, baseY, 2, seed, steps);
   const strokeD = pointsToBezier(pts);
   const f = (n: number) => +n.toFixed(2);
   const last = pts[pts.length - 1];
@@ -91,6 +95,10 @@ export function MarkdownEditor({
   const [uploadingCount, setUploadingCount] = useState(0);
   const [imageError, setImageError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // The toolbar's width sets its wave's turn count (ruleSteps).
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const { w: toolbarW } = useElementSize(toolbarRef);
+  const toolbarSteps = ruleSteps(toolbarW);
 
   // editorProps handlers are captured once at editor creation, so they reach
   // the latest upload logic through a ref instead of a stale closure.
@@ -174,13 +182,13 @@ export function MarkdownEditor({
   };
 
   const { toolbarMaskUrl, toolbarStrokeD } = useMemo(() => {
-    const { maskD, strokeD } = buildToolbarPaths(seed + 5);
+    const { maskD, strokeD } = buildToolbarPaths(seed + 5, toolbarSteps);
     const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${TOOLBAR_W} ${TOOLBAR_TOTAL_H}' preserveAspectRatio='none'><path d='${maskD}' fill='white'/></svg>`;
     return {
       toolbarMaskUrl: `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`,
       toolbarStrokeD: strokeD,
     };
-  }, [seed]);
+  }, [seed, toolbarSteps]);
 
   insertImagesRef.current = (files, pos) => {
     void (async () => {
@@ -199,8 +207,8 @@ export function MarkdownEditor({
           } else {
             editor.chain().focus().insertContent(node).run();
           }
-        } catch {
-          setImageError(t('imageUploadError'));
+        } catch (e) {
+          setImageError(t(e instanceof UnsupportedImage ? 'imageUnsupported' : 'imageUploadError'));
         } finally {
           setUploadingCount((c) => c - 1);
         }
@@ -245,7 +253,7 @@ export function MarkdownEditor({
       className={styles.surface}
     >
       <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-        <div className={styles.toolbarWrap}>
+        <div ref={toolbarRef} className={styles.toolbarWrap}>
           <div
             aria-hidden
             className={styles.toolbarBg}
