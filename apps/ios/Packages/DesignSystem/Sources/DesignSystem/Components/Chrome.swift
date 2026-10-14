@@ -218,9 +218,12 @@ public struct HeaderContextTitle: View {
     let shown: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// A pushed page's context in the header's centre (round 5 D5): the heading face at iPadOS's
-    /// inline-title size, 17 semibold, on one line.
-    public static var font: Font { AppFonts.heading(17, weight: .semibold) }
+    /// A pushed page's context in the header's centre (round 5 D5): the heading face a step over
+    /// iPadOS's inline-title 17 — 19, on one line (Android's the same) — so a card's title reads as
+    /// the page's name in the 72pt row rather than a caption in it. Bold, as the bar titles and the
+    /// article's own title are: Noto Serif TC's semibold read faint beside the bar's glyphs.
+    public static var font: Font { AppFonts.heading(size, weight: .bold) }
+    public static let size: CGFloat = 19
 
     public init(_ text: String, shown: Bool) {
         self.text = text
@@ -561,6 +564,31 @@ private func barTitleDrop(_ title: String, size: CGFloat) -> CGFloat {
     title.unicodeScalars.contains { $0.properties.isIdeographic } ? size * 0.08 : 0
 }
 
+/// Where a CJK title stands beside a pushed page's back arrow: level with the arrow, which is centred
+/// on the row (the brand's drop above is for the wave mark, nudged down 7% to the wordmark's mass —
+/// beside the arrow it set 寫一張新卡片 and 個人檔案 2.3pt under the arrow's middle). A Text is
+/// centred on the heading face's line box, Playfair's ascent 1.082em over its descent 0.251em, whose
+/// middle is 0.416em over the baseline; ideographs fill Noto Serif TC's em box from 0.12em under the
+/// baseline to 0.88em over it (their ink −0.075…0.83em), whose middle is 0.38em: so they hang 0.036em
+/// (0.7pt at 20) under the line box's middle, and are lifted by that much. A Latin title stays.
+/// ``BarTitleMetrics/arrowLift(size:)``.
+private func barTitleBesideArrow(_ title: String, size: CGFloat) -> CGFloat {
+    title.unicodeScalars.contains { $0.properties.isIdeographic } ? -BarTitleMetrics.arrowLift(size: size) : 0
+}
+
+/// The numbers behind a bar title's place (see `barTitleBesideArrow`).
+public enum BarTitleMetrics {
+    /// The middle of the CJK face's ideographic em box over the baseline (Noto Serif TC: −0.12…0.88em).
+    public static let ideographicMiddle: CGFloat = 0.38
+
+    /// How far an ideograph's middle hangs under the middle of the heading face's line box at `size`.
+    public static func arrowLift(size: CGFloat) -> CGFloat {
+        let face = AppFonts.uiFont(.heading, size: 100, weight: .bold)
+        let lineMiddle = (face.ascender + face.descender) / 2 / 100
+        return max(0, lineMiddle - ideographicMiddle) * size
+    }
+}
+
 /// The root tabs' pinned bar (the web AppHeader on a phone): the brand
 /// lockup on cream that ends on the wavy pen line, content scrolling under it.
 /// A tab that names itself in the bar gives its `title`, which takes the
@@ -818,7 +846,7 @@ public struct OrganicInlineBar<Leading: View, Trailing: View>: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .foregroundStyle(Tokens.text)
-                .offset(y: chrome != nil ? 0 : barTitleDrop(title, size: size))
+                .offset(y: chrome != nil ? 0 : barTitleBesideArrow(title, size: size))
                 .accessibilityAddTraits(.isHeader)
         }
     }

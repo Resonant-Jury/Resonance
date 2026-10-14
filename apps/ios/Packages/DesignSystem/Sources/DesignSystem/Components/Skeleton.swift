@@ -60,12 +60,28 @@ public struct SkeletonBlock: View {
     /// color-mix(in oklch, color-mix(cream-dark 94%, text) 85%, transparent).
     static let base = OKLCHColor.color(0.8898, 0.0187, 74.1, alpha: 0.85)
 
-    /// color-mix(in oklch, <highlight> 50%, cream), the highlight being
+    /// color-mix(in oklab, <highlight> 50%, cream), the highlight being
     /// oklch(88% .08 hue) on a card, or terracotta-light (hue 55) elsewhere.
     static func highlight(_ hue: Double?) -> Color {
-        let h = hue ?? 55
-        let toCream = (75 - h + 540).truncatingRemainder(dividingBy: 360) - 180
-        return OKLCHColor.color((0.88 + 0.965) / 2, (0.08 + 0.015) / 2, h + toCream / 2)
+        let mix = highlightOKLCH(hue)
+        return OKLCHColor.color(mix.L, mix.C, mix.H)
+    }
+
+    /// The highlight as OKLCH: the card's light shade and the cream averaged in OKLab (a = C·cos h,
+    /// b = C·sin h), so the mix stays on the line between them. An average of hues instead swung a
+    /// lavender card's light through red to pink and a blue one's to green (both on the way to the
+    /// cream's 75°).
+    public static func highlightOKLCH(_ hue: Double?) -> (L: Double, C: Double, H: Double) {
+        let card = (L: 0.88, C: 0.08, H: hue ?? 55)
+        let cream = (L: 0.965, C: 0.015, H: 75.0)
+        func lab(_ c: (L: Double, C: Double, H: Double)) -> (L: Double, a: Double, b: Double) {
+            let r = c.H * .pi / 180
+            return (c.L, c.C * cos(r), c.C * sin(r))
+        }
+        let x = lab(card), y = lab(cream)
+        let L = (x.L + y.L) / 2, a = (x.a + y.a) / 2, b = (x.b + y.b) / 2
+        let H = atan2(b, a) * 180 / .pi
+        return (L, (a * a + b * b).squareRoot(), H < 0 ? H + 360 : H)
     }
 
     /// The gradient is 4× the block wide (stops at 25/37/63%) and slides from

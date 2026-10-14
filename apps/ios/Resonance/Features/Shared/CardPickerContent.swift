@@ -81,6 +81,8 @@ struct CardPickList<Lead: View, Empty: View>: View {
                 }
             }
         }
+        // Its ends fade while there is more that way (the web's useEdgeFades).
+        .scrollEdgeFades()
         .frame(maxHeight: window.height * 0.5)
         .fixedSize(horizontal: false, vertical: true)
         .scrollIndicators(.hidden)

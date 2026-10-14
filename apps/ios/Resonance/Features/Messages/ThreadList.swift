@@ -147,6 +147,15 @@ struct MessageList: View {
             // composer — with the fade's height besides, so the newest message rests clear of it.
             .contentMargins(.bottom, topMargin + 4, for: .scrollContent)
             .contentMargins(.top, 10 + edgeFade, for: .scrollContent)
+            // A vertical list has nothing to move sideways to: if anything ever leaves it scrolled aside — the
+            // owner saw the whole thread 16 to the left, their face cut by the screen's edge, after replying
+            // by a swipe — it goes straight back to its own edge, where it is otherwise held (no drag can
+            // move it sideways).
+            .onScrollGeometryChange(for: Bool.self) { geo in
+                ReplySwipeMath.drifted(offsetX: geo.contentOffset.x + geo.contentInsets.leading)
+            } action: { _, drifted in
+                if drifted { position.scrollTo(x: 0) }
+            }
             .onScrollGeometryChange(for: ListPlace.self) { geo in
                 // The container is what lies between the insets: upside down, the air over the
                 // composer below it and the bar (with the status bar) above it.
@@ -739,12 +748,39 @@ private struct DeliveryLine: View {
 
 // MARK: - Swipe to reply
 
-/// How far a message is dragged before letting go replies.
-private let swipeToReply: CGFloat = 56
+/// A reply's drag in numbers: how far it is pulled, how far the message is drawn, when it takes.
+nonisolated enum ReplySwipeMath {
+    /// How far a message is dragged before letting go replies.
+    static let threshold: CGFloat = 56
+    /// The furthest a drag counts (past it the finger goes on, the message doesn't).
+    static let maxPull: CGFloat = threshold * 2.4
+
+    /// The finger's distance toward the middle, held to 0…`maxPull`.
+    static func pulled(_ distance: CGFloat) -> CGFloat { min(max(distance, 0), maxPull) }
+
+    /// How far the message is drawn for a pull: with it up to the threshold, then giving with resistance.
+    static func shown(_ pulled: CGFloat) -> CGFloat {
+        pulled <= threshold ? pulled : threshold + (pulled - threshold) * 0.3
+    }
+
+    /// The reply glyph's growth (0…1).
+    static func progress(_ pulled: CGFloat) -> CGFloat { min(1, pulled / threshold) }
+
+    /// Letting go here replies.
+    static func takes(_ pulled: CGFloat) -> Bool { pulled >= threshold }
+
+    /// The list stands aside from its own edge (more than a rounding's worth).
+    static func drifted(offsetX: CGFloat) -> Bool { abs(offsetX) > 0.5 }
+}
 
 /// Drag a message toward the middle of the screen (theirs to the right, yours to the left) and the
-/// reply glyph grows in behind it; past `swipeToReply` a tick says it will take, and letting go
+/// reply glyph grows in behind it; past the threshold a tick says it will take, and letting go
 /// replies. It always springs back. A sideways drag only, so scrolling the thread is not fought.
+///
+/// The row — their face and the bubble together — is moved only where it is drawn (a visual
+/// effect, not an offset): its frame never leaves its place, so nothing that reads where rows are
+/// (the list keeping its place as the composer grows a reply bar or loses it, the press's lift)
+/// ever sees it moved and sets the list aside to follow it.
 private struct SwipeToReply<Content: View>: View {
     let enabled: Bool
     let mine: Bool
@@ -754,11 +790,11 @@ private struct SwipeToReply<Content: View>: View {
     @State private var ticked = false
 
     var body: some View {
-        // Past the threshold the message gives, but with resistance.
-        let shown = pulled <= swipeToReply ? pulled : swipeToReply + (pulled - swipeToReply) * 0.3
-        let progress = min(1, pulled / swipeToReply)
+        let shown = ReplySwipeMath.shown(pulled)
+        let progress = ReplySwipeMath.progress(pulled)
+        let dx = mine ? -shown : shown
         let row = content
-            .offset(x: mine ? -shown : shown)
+            .visualEffect { view, _ in view.offset(x: dx) }
             .frame(maxWidth: .infinity)
             .background(alignment: mine ? .trailing : .leading) {
                 if pulled > 0 {
@@ -777,8 +813,8 @@ private struct SwipeToReply<Content: View>: View {
     }
 
     private func drag(_ distance: CGFloat) {
-        pulled = min(distance, swipeToReply * 2.4)
-        let past = pulled >= swipeToReply
+        pulled = ReplySwipeMath.pulled(distance)
+        let past = ReplySwipeMath.takes(pulled)
         if past != ticked {
             ticked = past
             if past { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
@@ -786,8 +822,9 @@ private struct SwipeToReply<Content: View>: View {
     }
 
     private func end() {
-        if pulled >= swipeToReply { onReply() }
+        let takes = ReplySwipeMath.takes(pulled)
         ticked = false
         withAnimation(.spring(response: 0.35, dampingFraction: 0.62)) { pulled = 0 }
+        if takes { onReply() }
     }
 }

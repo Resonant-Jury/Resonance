@@ -104,6 +104,16 @@ public struct OrganicButton: View {
         return copy
     }
 
+    /// A glyph-only chip's own room at either side (the thought map's Back: a short rectangle
+    /// beside its labelled neighbours, not the roomy pill).
+    var iconPadX: CGFloat?
+
+    public func glyphPadding(_ horizontal: CGFloat) -> OrganicButton {
+        var copy = self
+        copy.iconPadX = horizontal
+        return copy
+    }
+
     public func mirroringIcon() -> OrganicButton {
         var copy = self
         copy.mirrorsIcon = true
@@ -246,7 +256,7 @@ extension OrganicButton {
                 .opacity(showsLoader ? 0 : 1)
                 .overlay { if showsLoader { ButtonLoader(size: iconOnlySize, color: style.textColor).transition(.opacity) } }
                 .foregroundStyle(style.textColor)
-                .padding(.horizontal, roomyIcon ? (size == .sm ? 18 : 32) : 11)
+                .padding(.horizontal, iconPadX ?? (roomyIcon ? (size == .sm ? 18 : 32) : 11))
                 .padding(.vertical, roomyIcon ? (size == .sm ? 9 : 14) : 9)
                 .frame(minHeight: style.minHeight)
         } else {

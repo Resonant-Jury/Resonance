@@ -6,8 +6,9 @@ import SwiftUI
 /// field's line; terracotta while anything inside it has focus) holds the
 /// chosen tags as bare `md` pills — one frame per layer, so none draws a pen
 /// line — then the text input and one trailing action that follows the
-/// context: with nothing typed it asks the model for tags (the action breathes
-/// while it thinks), with something typed it adds that tag. Return, a comma
+/// context: with nothing typed it asks the model for tags (while it thinks, the
+/// pen loop takes the sparkle's place and the words stay, so the button keeps its
+/// width — the web's OrganicButton `loading`), with something typed it adds that tag. Return, a comma
 /// (，、 too) or the action adds. The pills wrap, and the input with its
 /// action goes down together once the line is full (``TagFlow``). The helper
 /// line under it is the caller's.
@@ -21,8 +22,6 @@ struct TagField: View {
     let onSuggest: () -> Void
 
     @FocusState private var focused: Bool
-    @State private var breathing = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var canAdd: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var thinking: Bool { suggesting && !canAdd }
@@ -41,11 +40,12 @@ struct TagField: View {
                     .onSubmit(commit)
                     // The line box of a 15pt body (1.6), as the other fields.
                     .frame(minHeight: 15 * 1.6)
-                OrganicButton(actionTitle, icon: canAdd ? .plus : .sparkle, variant: .tonal, size: .sm) {
+                OrganicButton(canAdd ? L10n.Write.tagsAdd : L10n.Write.tagsSuggest, icon: canAdd ? .plus : .sparkle,
+                              variant: .tonal, size: .sm) {
                     if canAdd { commit() } else { onSuggest() }
                 }
-                // The sparkle breathes (the action fades as a whole: the button draws its label and glyph together) until the tags arrive.
-                .opacity(thinking ? (breathing ? 1 : 0.45) : 1)
+                // Asking the model: the sparkle's place draws the pen loop until the tags arrive.
+                .loading(thinking)
             }
         }
         // The action carries its own room, so the right edge pads less.
@@ -56,18 +56,6 @@ struct TagField: View {
         // The empty parts of the frame are the input's too; the pills' ✕ and the action take their own taps first.
         .contentShape(Rectangle())
         .onTapGesture { focused = true }
-        .onChange(of: thinking) { _, on in
-            if on, !reduceMotion {
-                withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { breathing = true }
-            } else {
-                withAnimation(.easeOut(duration: 0.15)) { breathing = false }
-            }
-        }
-    }
-
-    private var actionTitle: String {
-        if canAdd { return L10n.Write.tagsAdd }
-        return suggesting ? L10n.Write.tagsSuggesting : L10n.Write.tagsSuggest
     }
 
     /// Add what is typed and stay for the next one (Return would otherwise put the keyboard away).

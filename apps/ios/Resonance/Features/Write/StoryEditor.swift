@@ -292,14 +292,23 @@ private nonisolated struct ToolWashShape: Shape {
     }
 }
 
-/// The toolbar's pen line: AppHeader's construction — ten turns across an
-/// 800×54 box stretched over the toolbar, low in it, edge to edge.
-private struct ToolbarWave: View {
+/// The toolbar's pen line: AppHeader's construction — an 800×54 box stretched
+/// over the toolbar, low in it, edge to edge — with as many turns as the width
+/// it is shown at takes (``steps(width:)``), so a phone's isn't ten squeezed in.
+struct ToolbarWave: View {
     let seed: Double
+
+    /// The web's ruleSteps: a turn per ~80 of the toolbar's width, 4 at the fewest and 12 at the
+    /// most; the old ten until it is measured.
+    static func steps(width: CGFloat) -> Int {
+        guard width > 0 else { return 10 }
+        return min(12, max(4, Int((width / 80).rounded())))
+    }
 
     var body: some View {
         Canvas { ctx, size in
-            let line = pointsToBezier(wavyPoints(800, y0: 42 + 12 * 0.35, amp: 2, seed: seed, steps: 10)).path()
+            let steps = Self.steps(width: size.width)
+            let line = pointsToBezier(wavyPoints(800, y0: 42 + 12 * 0.35, amp: 2, seed: seed, steps: steps)).path()
             let fitted = line.applying(CGAffineTransform(scaleX: size.width / 800, y: size.height / 54))
             ctx.stroke(fitted, with: .color(Tokens.fieldBorderHover.opacity(0.45)), style: StrokeStyle(lineWidth: Tokens.inkLight, lineCap: .round))
         }

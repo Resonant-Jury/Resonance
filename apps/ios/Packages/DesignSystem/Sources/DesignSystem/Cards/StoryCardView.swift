@@ -115,6 +115,8 @@ public struct StoryCardView: View {
                 .padding(.top, -4)
             }
         }
+        // A cover on its way shimmers in this card's own family (the web's --skeleton-highlight).
+        .environment(\.skeletonHue, palette.hue)
         .modifier(StoryCardChrome(palette: palette, seed: seed, isLast: isLast, underBar: underBar, bordered: bordered, hovered: hovered))
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
@@ -298,6 +300,7 @@ public struct MiniStoryCardView: View {
             }
             .padding(.top, 2)
         }
+        .environment(\.skeletonHue, palette.hue)
         .modifier(StoryBand(palette: palette, seed: seed, isLast: isLast, verticalPadding: 28))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)

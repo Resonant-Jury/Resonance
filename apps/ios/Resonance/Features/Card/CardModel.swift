@@ -22,6 +22,8 @@ final class CardModel {
     private(set) var placeholder: FeedCard?
     /// The story, parsed once when it arrives, its bare web addresses made links.
     private(set) var blocks: [StoryBlock] = []
+    /// The story's h2 and h3, for a wide page's table of contents.
+    private(set) var toc: [TocEntry] = []
     private(set) var resonances: [FeedCard] = []
     private(set) var related: [FeedCard] = []
     private(set) var links: [FeedCard] = []
@@ -85,6 +87,7 @@ final class CardModel {
             blocks = StoryBlock.linkingAddresses(StoryParser.parse(detail.story)) { words in
                 ChatLinks.links(in: words).map { (range: $0.range, url: $0.url.absoluteString) }
             }
+            toc = TocEntry.entries(blocks)
             resonances = detail.resonances?.cards ?? []
             related = detail.related?.cards ?? []
             links = detail.links?.cards ?? []

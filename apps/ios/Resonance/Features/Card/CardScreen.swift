@@ -22,6 +22,7 @@ struct CardScreen: View {
     @Environment(\.window) private var window
     /// A tablet's header (round 5 C1): the card's title fades into its centre in place of the author.
     @Environment(\.headerChrome) private var headerChrome
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// What the page has across.
     @State private var width: CGFloat?
     private static let pageSpace = "card.page"
@@ -34,25 +35,56 @@ struct CardScreen: View {
 
     /// The article's column, and the author rail beside it on a wide window.
     private var layout: CardPageLayout { .of(width: width ?? window.contentWidth, window: window.width) }
+    /// How far the lists under the story reach out of the article's column on either side: on a
+    /// phone and down a medium window's middle they are bands, whose paper and wavy rules run from
+    /// edge to edge of the page while the cards keep to their measure inside (``StoryBand``) — as a
+    /// phone's do. Beside the rail they stay in the column (the bordered grid's).
+    private var bleed: CGFloat { layout.rail ? 0 : max(0, layout.leading) }
 
     var body: some View {
-        ScrollView {
-            column
+        ScrollViewReader { proxy in
+            ScrollView {
+                column
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+            // The page's own scroll (the bar's line and progress): on the page's scroll view alone, not
+            // on the rail's table of contents, which scrolls by itself.
+            .modifier(CardScroll(screen: self))
+            // The author's rail stays put beside the article as it scrolls (the web's sticky aside).
+            .overlay(alignment: .topLeading) {
+                if layout.rail, let model, let card = model.detail?.card ?? model.placeholder {
+                    rail(model, card: card, proxy: proxy)
+                }
+            }
+            .modifier(CardChrome(screen: self))
         }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        // The author's rail stays put beside the article as it scrolls (the web's sticky aside).
-        .overlay(alignment: .topLeading) {
-            if layout.rail, let model, let card = model.detail?.card ?? model.placeholder {
-                CardAuthorRail(card: card, anonymous: model.detail?.anonymous ?? card.anonymous, isOwner: model.detail?.isOwner ?? false)
-                    .frame(width: Tokens.cardRailW, alignment: .leading)
-                    .padding(.leading, layout.railX)
-                    // 8 under the article's top, as it has been (a tablet's 32 under the header's line, round 5 E2).
-                    .headerGap(phone: 16)
-                    .padding(.top, 8)
-                    .transition(.opacity)
+    }
+
+    /// The author, and under them the story's table of contents (the web's aside: 28 apart). It never
+    /// runs past the window: it ends 24 above the foot, as the web's `max-height` keeps it, and a long
+    /// table of contents scrolls in what is left.
+    private func rail(_ model: CardModel, card: FeedCard, proxy: ScrollViewProxy) -> some View {
+        let toc = model.phase == .loaded ? model.toc : []
+        return VStack(alignment: .leading, spacing: 28) {
+            CardAuthorRail(card: card, anonymous: model.detail?.anonymous ?? card.anonymous, isOwner: model.detail?.isOwner ?? false)
+            if !toc.isEmpty {
+                CardToc(entries: toc, title: L10n.Card.toc) { entry in
+                    // The heading 16 under the bar's line (the web's scroll-margin-top), smoothly unless motion is reduced.
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4)) {
+                        proxy.scrollTo(StoryHeadingAnchor(index: entry.index), anchor: .top)
+                    }
+                }
+                .transition(.opacity)
             }
         }
-        .modifier(CardChrome(screen: self))
+        .frame(width: Tokens.cardRailW, alignment: .leading)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .padding(.leading, layout.railX)
+        // 8 under the article's top, as it has been (a tablet's 32 under the header's line, round 5 E2).
+        .headerGap(phone: 16)
+        .padding(.top, 8)
+        .padding(.bottom, 24)
+        .transition(.opacity)
     }
 
     /// The page inside the article's column (centred; beside the rail on a wide window).
@@ -78,7 +110,7 @@ struct CardScreen: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    fileprivate func chrome(_ content: some View) -> some View {
+    fileprivate func scroll(_ content: some View) -> some View {
         content
         .onHeaderScroll($scrolled)
         // The story's progress: where the bar's line is in the scrolled content, and how much shows.
@@ -93,6 +125,10 @@ struct CardScreen: View {
             withAnimation(.easeOut(duration: 0.2)) { bylineGone = gone }
         }
         .scrollIndicators(.hidden)
+    }
+
+    fileprivate func chrome(_ content: some View) -> some View {
+        content
         .background(Tokens.cream)
         .safeAreaInset(edge: .top, spacing: 0) {
             Metered(meter: meter) { progress, titleGone in
@@ -179,6 +215,8 @@ struct CardScreen: View {
                                              openLabel: L10n.Card.LinkPreview.open(host: host)) { openPreview(preview) }
                     }
                 }
+                // Its headings are where the rail's table of contents takes the page.
+                .anchoringHeadings()
                 // The story block alone (not the cover, title or what follows) is what the progress measures.
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.pageSpace)) } action: { meter.story = $0 }
                 .padding(.bottom, 32)
@@ -205,18 +243,22 @@ struct CardScreen: View {
             .padding(.horizontal, 20)
             .headerGap(phone: 16)
 
-            if !model.links.isEmpty { MiniCardList(cards: model.links).padding(.bottom, 40) }
+            if !model.links.isEmpty { MiniCardList(cards: model.links).padding(.horizontal, -bleed).padding(.bottom, 40) }
             // The article's own bottom padding — already there under a last row that keeps its own 40
             // (the reader's actions, the tags, the linked cards): not a second band of air.
             if detail.isOwner && card.tags.isEmpty && model.links.isEmpty { Color.clear.frame(height: 8) }
 
             let resonance = model.resonanceSection
             if !resonance.isEmpty {
-                section(L10n.Card.ResonanceSection.title, headingGap: tablet ? Self.tabletHeadingGap : 40) { MiniCardList(cards: resonance) }
+                section(L10n.Card.ResonanceSection.title, headingGap: tablet ? Self.tabletHeadingGap : 40) {
+                    MiniCardList(cards: resonance).padding(.horizontal, -bleed)
+                }
             }
             if !model.related.isEmpty {
                 // Bands, and on an expanded window the bordered grid — as the lists above it (round 5 D3).
-                section(L10n.Card.related, headingGap: tablet ? Self.tabletHeadingGap : 56) { StoryCardList(cards: model.related) }
+                section(L10n.Card.related, headingGap: tablet ? Self.tabletHeadingGap : 56) {
+                    StoryCardList(cards: model.related).padding(.horizontal, -bleed)
+                }
             }
             // The page's own air under its last section (editing your card is in its ⋯).
             Color.clear.frame(height: 40)
@@ -235,6 +277,8 @@ struct CardScreen: View {
             }
             if let url = card.imageUrl.flatMap(URL.init(string:)) {
                 OrganicImage(url: url, seed: hue + 11, fill: Tokens.creamDark)
+                    // On its way, the cover shimmers in the card's own hue (as in its story card).
+                    .environment(\.skeletonHue, card.accentHue)
                     .aspectRatio(1 / 0.52, contentMode: .fit)
                     .padding(.bottom, 20)
                     .accessibilityLabel(card.imageLabel ?? card.title)
@@ -347,6 +391,13 @@ private struct CardChrome: ViewModifier {
     let screen: CardScreen
 
     func body(content: Content) -> some View { screen.chrome(content) }
+}
+
+/// What the card page reads from its own scroll view: the bar's line and the reading progress.
+private struct CardScroll: ViewModifier {
+    let screen: CardScreen
+
+    func body(content: Content) -> some View { screen.scroll(content) }
 }
 
 /// The author beside a wide window's article (the web's CardAuthorAside, design §11): their avatar,

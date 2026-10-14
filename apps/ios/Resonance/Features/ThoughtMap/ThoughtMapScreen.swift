@@ -93,17 +93,16 @@ struct ThoughtMapScreen: View {
     @ViewBuilder private func chrome(insets: EdgeInsets, size: CGSize) -> some View {
         let top = insets.top + 8
         ZStack(alignment: .topLeading) {
-            OrganicButton(icon: .arrowRight, label: L10n.Me.ThoughtMap.leave, iconSize: 15, variant: .tonal, size: .sm) {
-                if let back { back() } else { dismiss() }
-            }
-            .mirroringIcon()
-            .roomy()
-            // Clear of a window's controls in its corner, as a bar's leading item is.
-            .padding(.leading, controls.leading)
-            .windowControlsInset($controls)
-            .padding(.leading, 20)
-            .padding(.top, top)
+            // One row: Back at the leading end, the two tools at the trailing — all three one height
+            // (the row's, the labelled pills'), Back a short rectangle round its arrow.
             HStack(spacing: 10) {
+                OrganicButton(icon: .arrowRight, label: L10n.Me.ThoughtMap.leave, iconSize: 15, variant: .tonal, size: .sm) {
+                    if let back { back() } else { dismiss() }
+                }
+                .mirroringIcon()
+                .glyphPadding(Self.backPadding)
+                .fillingHeight()
+                Spacer(minLength: 10)
                 OrganicButton(L10n.Me.ThoughtMap.addGroupShort, icon: .frame, variant: .tonal, size: .sm) {
                     Task { await store.addGroup() }
                 }
@@ -112,9 +111,13 @@ struct ThoughtMapScreen: View {
                     store.trayOpen.toggle()
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, 20)
-            .offset(y: top)
+            .fixedSize(horizontal: false, vertical: true)
+            // Clear of a window's controls in its corners, as a bar's items are.
+            .padding(.leading, controls.leading)
+            .padding(.trailing, controls.trailing)
+            .windowControlsInset($controls)
+            .padding(.horizontal, 20)
+            .padding(.top, top)
             zoomCluster
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 .padding(.leading, 16)
@@ -135,8 +138,12 @@ struct ThoughtMapScreen: View {
         }
     }
 
-    /// The zoom cluster: − 100% + and the eye (fit), on a wobbly sheet of card
-    /// paper with no pen line (like the toolbar's paper buttons above).
+    /// Back's room either side of its 15pt arrow: 43 across beside the labelled pills' 36 of height.
+    static let backPadding: CGFloat = 14
+
+    /// The zoom cluster: − 100% + and the eye (fit), on a sheet of card paper with its grain, cut with
+    /// the toolbar's buttons' hand (``ZoomSheetShape``) and edged in the tray's pen line — a floating
+    /// surface over the board, as the tray is.
     private var zoomCluster: some View {
         HStack(spacing: 4) {
             zoomButton(.minus, L10n.Me.ThoughtMap.zoomOut) { store.zoom(by: 1 / 1.25) }
@@ -152,9 +159,10 @@ struct ThoughtMapScreen: View {
         .padding(.horizontal, 10)
         .background {
             // The paper buttons' paper: card fill and the cards' own grain tile.
-            let shape = WobRectShape(radius: 18, seed: 41)
+            let shape = ZoomSheetShape()
             shape.fill(Tokens.cardBg)
             GrainLayer(shape: shape, mode: .tile, opacity: 0.3, tile: "grain-card")
+            shape.stroke(Tokens.fieldBorder, style: StrokeStyle(lineWidth: Tokens.ink, lineCap: .round, lineJoin: .round))
         }
     }
 
@@ -179,6 +187,19 @@ struct ThoughtMapScreen: View {
             OrganicButton(L10n.Me.ThoughtMap.addCard, icon: .plus) { store.trayOpen = true }
         }
         .padding(.horizontal, 24)
+    }
+}
+
+/// The zoom cluster's outline (the web's ZOOM_R 18, ZOOM_SEED 41): the buttons' calm pill
+/// (OrganicButtonShape) — gentle turns along its long edges, one on the short ones, its wobble and
+/// corner drift scaled to its height — so it reads as drawn by the same hand as the pills above it,
+/// not as a rounded rectangle (the automatic wobble all but vanishes on a box this flat).
+private nonisolated struct ZoomSheetShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let m = Double(min(rect.width, rect.height))
+        return WobRectShape(radius: 18, seed: 41, mag: m * 0.05, options: WobRectOptions(
+            curve: 1.3, cornerJitter: 1.3, cornerOffset: m * 0.03, segmentsH: .range(3, 4), segmentsV: .count(1)))
+            .path(in: rect)
     }
 }
 
@@ -234,6 +255,8 @@ struct MapTray: View {
                 .padding(.horizontal, 16)
             }
             .scrollBounceBehavior(.basedOnSize)
+            // Its ends fade while there is more that way (the web's useEdgeFades).
+            .scrollEdgeFades()
             .frame(width: min(340, size.width - 32))
             .frame(maxHeight: min(440, size.height * 0.6))
             .fixedSize(horizontal: false, vertical: true)

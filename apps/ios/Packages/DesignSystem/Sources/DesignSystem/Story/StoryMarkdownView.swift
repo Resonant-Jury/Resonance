@@ -16,6 +16,7 @@ public struct StoryMarkdownView<Embed: View, LinkCard: View>: View {
     let onOpenURL: (URL) -> Void
     let embed: (_ href: String, _ title: String) -> Embed
     let linkCard: (_ href: String?, _ text: String) -> LinkCard?
+    var anchorsHeadings = false
 
     public init(blocks: [StoryBlock], onOpenURL: @escaping (URL) -> Void,
                 @ViewBuilder embed: @escaping (_ href: String, _ title: String) -> Embed,
@@ -27,7 +28,28 @@ public struct StoryMarkdownView<Embed: View, LinkCard: View>: View {
     }
 
     public var body: some View {
-        BlockStack(blocks: blocks, style: .body, onOpenURL: onOpenURL, embed: embed, linkCard: linkCard)
+        BlockStack(blocks: blocks, style: .body, onOpenURL: onOpenURL, embed: embed, linkCard: linkCard, anchors: anchorsHeadings)
+    }
+
+    /// Each heading among the story's own blocks (not inside a quote or a list) carries a
+    /// ``StoryHeadingAnchor`` for a `ScrollViewReader` to scroll to (the card page's table of
+    /// contents), set ``StoryHeadingAnchor/margin`` above the heading.
+    public func anchoringHeadings() -> Self {
+        var view = self
+        view.anchorsHeadings = true
+        return view
+    }
+}
+
+/// Where a heading of a story is, for `ScrollViewProxy.scrollTo(_:anchor:)`: its place among the
+/// story's blocks. Scrolled to with the `.top` anchor, the heading lands ``margin`` under the top of
+/// what shows (the web's `scroll-margin-top`: the header and 16).
+public struct StoryHeadingAnchor: Hashable, Sendable {
+    public let index: Int
+    public static let margin: CGFloat = 16
+
+    public init(index: Int) {
+        self.index = index
     }
 }
 
@@ -45,14 +67,29 @@ struct BlockStack<Embed: View, LinkCard: View>: View {
     let onOpenURL: (URL) -> Void
     let embed: (String, String) -> Embed
     let linkCard: (String?, String) -> LinkCard?
+    var anchors = false
 
     var body: some View {
         // CSS px at the reader's 17pt, grown with the text.
         let gaps = ProseMetrics.gaps(blocks).map { $0 * TextScale.factor(relativeTo: .body) }
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { i, block in
-                BlockView(block: block, style: style, onOpenURL: onOpenURL, embed: embed, linkCard: linkCard)
-                    .padding(.top, gaps[i])
+                let view = BlockView(block: block, style: style, onOpenURL: onOpenURL, embed: embed, linkCard: linkCard)
+                if anchors, case .heading = block {
+                    // The anchor is a child of its own, laid out `margin` above the heading — a scroll
+                    // lands on the identified view's frame, and one in a background takes its host's —
+                    // with the heading's gap shortened by as much, so nothing moves.
+                    let margin = StoryHeadingAnchor.margin
+                    ZStack(alignment: .topLeading) {
+                        view.padding(.top, margin)
+                        Color.clear.frame(width: 1, height: 1)
+                            .id(StoryHeadingAnchor(index: i))
+                            .accessibilityHidden(true)
+                    }
+                    .padding(.top, gaps[i] - margin)
+                } else {
+                    view.padding(.top, gaps[i])
+                }
             }
         }
     }

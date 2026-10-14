@@ -594,6 +594,7 @@ private struct SharedMediaContent: View {
                                     HStack(spacing: 12) {
                                         OrganicImage(url: card.imageUrl.flatMap(URL.init(string:)), seed: 7,
                                                      fill: OKLCHColor.color(0.9, 0.06, card.accentHue ?? 55))
+                                            .environment(\.skeletonHue, card.accentHue)
                                             .frame(width: 40, height: 40)
                                         Text(card.title).font(AppFonts.body(14, weight: .semibold)).foregroundStyle(Tokens.text)
                                             .lineLimit(2).multilineTextAlignment(.leading)
@@ -623,6 +624,7 @@ private struct SharedMediaContent: View {
                     }
                 }
             }
+            .scrollEdgeFades()
             .frame(maxHeight: min(420, window.height * 0.55))
             .scrollIndicators(.hidden)
             // Nothing to choose here, only to look through: the way out is under the list.
