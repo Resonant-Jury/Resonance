@@ -61,6 +61,28 @@ class StoryTocTest {
         assertEquals(400f, ScrollThumb.scrollFor(500f, 200f, 67f, 400f))
     }
 
+    @Test fun theHeadingBeingReadIsTheLastWhoseTopHasPassedTheReadingLine() {
+        val tops = mapOf("a" to 100f, "b" to 400f, "c" to 900f)
+        // Before the first passes the line, none is marked.
+        assertNull(StoryAnchors.reading(listOf("a", "b", "c"), tops::get, 99f))
+        assertEquals("a", StoryAnchors.reading(listOf("a", "b", "c"), tops::get, 100f))
+        assertEquals("b", StoryAnchors.reading(listOf("a", "b", "c"), tops::get, 899f))
+        assertEquals("c", StoryAnchors.reading(listOf("a", "b", "c"), tops::get, 5000f))
+        // A heading not laid out stops the walk: those after it can't be told apart.
+        assertEquals("a", StoryAnchors.reading(listOf("a", "x", "c"), tops::get, 5000f))
+    }
+
+    @Test fun theMarkedRowComesAThirdOfTheWayDownTheListClampedToItsEnds() {
+        // A 300 list scrolling 1000: a row at 600 comes to 100 from the top.
+        assertEquals(500, TocLayout.followScroll(600f, 300f, 1000))
+        // Near the top or the foot the list stops at its ends.
+        assertEquals(0, TocLayout.followScroll(40f, 300f, 1000))
+        assertEquals(1000, TocLayout.followScroll(1290f, 300f, 1000))
+        // Nothing laid out yet: nothing moves.
+        assertNull(TocLayout.followScroll(-1f, 300f, 1000))
+        assertNull(TocLayout.followScroll(600f, 0f, 1000))
+    }
+
     @Test fun aCardsShimmerMeetsTheCreamInOklabNotRoundTheHueCircle() {
         // Lavender stays lavender (round the circle it swung through red to pink), blue stays blue (not green).
         val (l, c, lavender) = Mixes.skeletonHighlightOklch(290.0)

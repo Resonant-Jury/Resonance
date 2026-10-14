@@ -286,10 +286,35 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
     val scope = rememberCoroutineScope()
     val reduced = context.prefersReducedMotion()
     val density = LocalDensity.current
+    // The heading being read (CardToc's): the last whose top has passed a line 96 under the bar —
+    // from where the article is in the list and where each heading is in the article, so it follows
+    // the scroll frame by frame. A tapped one is marked at once and kept while the page goes there,
+    // so the headings it passes don't flash.
+    var articleCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val readingLine = with(density) { (top + ReadingLine).toPx() }
+    val reading by remember(list, headings, anchors, readingLine) {
+        derivedStateOf {
+            val info = list.layoutInfo
+            val article = info.visibleItemsInfo.firstOrNull { it.key == "article" }
+                ?: return@derivedStateOf if (list.firstVisibleItemIndex > 0) headings.lastOrNull() else null
+            val articleTop = (article.offset - info.viewportStartOffset).toFloat()
+            StoryAnchors.reading(headings, { h -> anchors.positionIn(articleCoords, h.block)?.let { articleTop + it } }, readingLine)
+        }
+    }
+    var tapped by remember { mutableStateOf<TocHeading?>(null) }
+    val going = remember { arrayOfNulls<Job>(1) }
     val onHeading: (TocHeading) -> Unit = { h ->
         anchors.positionIn(listCoords, h.block)?.let { y ->
             val by = y - with(density) { (top + HeadingLanding).toPx() }
-            scope.launch { if (reduced) list.scrollBy(by) else list.animateScrollBy(by) }
+            tapped = h
+            going[0]?.cancel()
+            going[0] = scope.launch {
+                try {
+                    if (reduced) list.scrollBy(by) else list.animateScrollBy(by)
+                } finally {
+                    if (tapped === h) tapped = null
+                }
+            }
         }
     }
     // A tablet's article starts 32 under the header's pen line; its lists' headings have more air (round 5 E2).
@@ -312,7 +337,7 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
                 val relatedLayout = cardListLayout()
                 LazyColumn(Modifier.fillMaxSize().onPlaced { listCoords = it }, state = list, contentPadding = PaddingValues(top = top, bottom = 40.dp)) {
                     item(key = "article") {
-                        Column(heading.onItem.padding(start = columns.start, end = columns.end).padding(top = articleTop)) {
+                        Column(heading.onItem.onPlaced { articleCoords = it }.padding(start = columns.start, end = columns.end).padding(top = articleTop)) {
                             ArticleHead(card, d.anonymous, byline = !railed, titleModifier = heading.onHeading) { open(Route.Author(it)) }
                             // The story alone is what the bar's progress measures (not the cover, title or lists).
                             Box(Modifier.onGloballyPositioned(progress::story)) {
@@ -364,9 +389,9 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
     val railStart = columns.railStart
     if (railStart != null) {
         val shown = detail?.takeIf { phase == "loaded" }
-        if (shown != null) AuthorRail(shown.card, shown.anonymous, shown.isOwner, railStart, list, top, headings, onHeading) { open(Route.Author(it)) }
+        if (shown != null) AuthorRail(shown.card, shown.anonymous, shown.isOwner, railStart, list, top, headings, tapped ?: reading, onHeading) { open(Route.Author(it)) }
         // While the card is read, the rail already shows whom the list said it is by.
-        else if (phase == "loading" && placeholder != null) AuthorRail(placeholder, placeholder.anonymous, false, railStart, null, top, emptyList(), {}) { open(Route.Author(it)) }
+        else if (phase == "loading" && placeholder != null) AuthorRail(placeholder, placeholder.anonymous, false, railStart, null, top, emptyList(), null, {}) { open(Route.Author(it)) }
     }
     OrganicInlineBar(
         L10n.App.Nav.back, back, scrolled = list.scrolledPast20(),
@@ -555,7 +580,7 @@ private fun AuthorRegionFlag(region: String?, size: Dp) {
 @Composable
 private fun AuthorRail(
     card: FeedCard, anonymous: Boolean, isOwner: Boolean, x: Dp, list: LazyListState?, top: Dp,
-    headings: List<TocHeading>, onHeading: (TocHeading) -> Unit,
+    headings: List<TocHeading>, reading: TocHeading?, onHeading: (TocHeading) -> Unit,
     openAuthor: (String) -> Unit,
 ) {
     val density = LocalDensity.current
@@ -606,7 +631,7 @@ private fun AuthorRail(
         if (headings.isNotEmpty()) {
             // The aside's 28 between the two (the column's own 4 on either side of it).
             Spacer(Modifier.height(20.dp))
-            StoryToc(headings, L10n.Card.toc, onHeading, Modifier.weight(1f, fill = false))
+            StoryToc(headings, L10n.Card.toc, onHeading, Modifier.weight(1f, fill = false), active = reading)
         }
     }
 }
@@ -616,6 +641,9 @@ private val RailFootRoom = 24.dp
 
 /** Where a heading the table of contents was tapped for comes to rest: 16 under the bar (scroll-margin-top). */
 private val HeadingLanding = 16.dp
+
+/** The reading line: a heading whose top has passed it, 96 under the bar, is the one being read. */
+private val ReadingLine = 96.dp
 
 /**
  * A card link standing alone in a story (CardEmbedLink), drawn as a block like a story link card

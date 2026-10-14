@@ -1,5 +1,12 @@
 package com.resonance.design
 
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.semantics.selected
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -107,6 +114,21 @@ class StoryAnchors {
         if (within == null || !within.isAttached || !at.isAttached) return null
         return within.localPositionOf(at, Offset.Zero).y
     }
+
+    companion object {
+        /**
+         * The heading being read: the last whose top ([tops], in reading order, the same space as
+         * [line]; null where not laid out) has passed the reading [line]; none before the first has.
+         */
+        fun <T> reading(headings: List<T>, tops: (T) -> Float?, line: Float): T? {
+            var found: T? = null
+            for (h in headings) {
+                val top = tops(h) ?: break
+                if (top <= line) found = h else break
+            }
+            return found
+        }
+    }
 }
 
 /**
@@ -139,29 +161,80 @@ data class ScrollThumb(val h: Float, val top: Float, val max: Float) {
 /**
  * CardToc.tsx, in a card page's rail: the title (12/600, spaced capitals, muted), 10 under it the
  * headings — 14 muted, terracotta while pressed or pointed at; an h3 12 in — and a tap on one is
- * [onSelect]. Given less room than it needs (the rail stops at the window) the list scrolls in
- * place, with no bar of its own: the wavy rule down its left (wavyVertical, amp 5, seed 9, the
- * fields' border ink) stays put, as tall as the list shows, and a terracotta stretch of it
- * (INK_STRONG, round ends, its length along the curve) stands for the part in view, sized and
+ * [onSelect]. The heading being read ([active]: the page decides which) is terracotta too, its
+ * weight unchanged; when it changes the list brings its row a third of the way down what shows
+ * (250 ms, at once with animations off; clamped to the list's ends) — not while the reader holds
+ * the list or its stretch. Given less room than it needs (the rail stops at the window) the list
+ * scrolls in place, with no bar of its own: the wavy rule down its left (wavyVertical, amp 5,
+ * seed 9, the fields' border ink) stays put, as tall as the list shows, and a terracotta stretch of
+ * it (INK_STRONG, round ends, its length along the curve) stands for the part in view, sized and
  * placed by [ScrollThumb] — dragged, it scrolls the list; a tap on the rule above or below it moves
- * the list a page. The side the list can still move toward fades out over 36. A list with room to
- * spare is still: a drag over it is the page's.
+ * the list a page. The side the list can still move toward fades out over [TocFade]. A list with
+ * room to spare is still: a drag over it is the page's.
  */
 @Composable
-fun StoryToc(headings: List<TocHeading>, title: String, onSelect: (TocHeading) -> Unit, modifier: Modifier = Modifier) {
+fun StoryToc(
+    headings: List<TocHeading>,
+    title: String,
+    onSelect: (TocHeading) -> Unit,
+    modifier: Modifier = Modifier,
+    active: TocHeading? = null,
+) {
     if (headings.isEmpty()) return
     val scroll = rememberScrollState()
+    val toc = remember(headings) { TocLayout(headings.size) }
+    val context = LocalContext.current
+    val still = remember(context) { context.prefersReducedMotion() }
+    val listHeld by scroll.interactionSource.collectIsDraggedAsState()
+    LaunchedEffect(active, toc) {
+        val i = headings.indexOfFirst { it === active }
+        if (i < 0) return@LaunchedEffect
+        // A row not laid out yet (the page just came in): a frame on, it is.
+        if (toc.rowTops[i] < 0f) withFrameNanos { }
+        if (toc.ruleHeld || listHeld) return@LaunchedEffect
+        val target = TocLayout.followScroll(toc.rowTops[i], toc.viewport.toFloat(), scroll.maxValue) ?: return@LaunchedEffect
+        if (still) scroll.scrollTo(target) else scroll.animateScrollTo(target, tween(TOC_FOLLOW_MILLIS))
+    }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         BasicText(
             title.uppercase(),
             style = AppFonts.body(12f, 600, lineHeight = 1.3f, color = Tokens.TextMuted).copy(letterSpacing = 0.08.em),
             modifier = Modifier.semantics { heading() },
         )
-        TocRule(scroll, Modifier.weight(1f, fill = false)) {
-            headings.forEach { h -> TocLink(h, onSelect) }
+        TocRule(scroll, toc, Modifier.weight(1f, fill = false)) {
+            headings.forEachIndexed { i, h ->
+                TocLink(h, h === active, Modifier.onPlaced { toc.rowTops[i] = it.positionInParent().y }, onSelect)
+            }
         }
     }
 }
+
+/**
+ * What the table of contents knows of its own layout, outside composition: where each row's top is
+ * in the list's content, how tall the part that shows is, and whether a finger holds the stretch.
+ */
+internal class TocLayout(rows: Int) {
+    val rowTops = FloatArray(rows) { -1f }
+    var viewport = 0
+    var ruleHeld = false
+
+    companion object {
+        /**
+         * The scroll that sets a row whose top is [rowTop] (in the content, px) a third of the way down
+         * a list [viewport] tall, clamped to its ends ([max] its scroll range); null before either is known.
+         */
+        fun followScroll(rowTop: Float, viewport: Float, max: Int): Int? {
+            if (rowTop < 0f || viewport <= 0f || max == Int.MAX_VALUE) return null
+            return (rowTop - viewport / 3f).roundToInt().coerceIn(0, max.coerceAtLeast(0))
+        }
+    }
+}
+
+/** The list following the heading being read. */
+private const val TOC_FOLLOW_MILLIS = 250
+
+/** How far the list fades out at an edge it can still move toward. */
+private val TocFade = 16.dp
 
 /** The rule's column: as wide as the curve's swing and its pen, plus 2 (CardToc's RAIL_W). */
 private val TocRuleWidth = (TOC_AMP * 2).dp + Tokens.InkLight + 2.dp
@@ -173,7 +246,7 @@ private const val TOC_PAGE = 0.9f
 private val TocGrabSlack = 12.dp
 
 @Composable
-private fun TocRule(scroll: ScrollState, modifier: Modifier, content: @Composable () -> Unit) {
+private fun TocRule(scroll: ScrollState, toc: TocLayout, modifier: Modifier, content: @Composable () -> Unit) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val still = remember(context) { context.prefersReducedMotion() }
@@ -219,6 +292,7 @@ private fun TocRule(scroll: ScrollState, modifier: Modifier, content: @Composabl
                     val y = down.position.y / density
                     val grabbed = y >= thumb.top - slack / density && y <= thumb.top + thumb.h + slack / density
                     down.consume()
+                    toc.ruleHeld = grabbed
                     if (!grabbed) {
                         // The rule above or below the stretch: a page up or down.
                         val by = (if (y < thumb.top) -1 else 1) * size.height * TOC_PAGE
@@ -237,6 +311,7 @@ private fun TocRule(scroll: ScrollState, modifier: Modifier, content: @Composabl
                         }
                         change.consume()
                     }
+                    toc.ruleHeld = false
                 }
             }
             .pointerInput(scroll, wheelStep) {
@@ -256,7 +331,8 @@ private fun TocRule(scroll: ScrollState, modifier: Modifier, content: @Composabl
         Column(
             Modifier
                 .padding(start = TocRuleWidth)
-                .scrollFade(scroll, 36.dp)
+                .onSizeChanged { toc.viewport = it.height }
+                .scrollFade(scroll, TocFade)
                 .nestedScroll(contain)
                 .verticalScroll(scroll)
                 // Room for a pressed heading's ink at the ends; the list's own 6 from the rule.
@@ -274,15 +350,16 @@ private fun thumbOf(scroll: ScrollState, heightPx: Float, density: Float): Scrol
 }
 
 @Composable
-private fun TocLink(heading: TocHeading, onSelect: (TocHeading) -> Unit) {
+private fun TocLink(heading: TocHeading, reading: Boolean, modifier: Modifier, onSelect: (TocHeading) -> Unit) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val hovered by source.collectIsHoveredAsState()
     BasicText(
         heading.text,
-        style = AppFonts.body(14f, lineHeight = 1.45f, color = if (pressed || hovered) Tokens.Terracotta else Tokens.TextMuted),
-        modifier = Modifier
+        style = AppFonts.body(14f, lineHeight = 1.45f, color = if (reading || pressed || hovered) Tokens.Terracotta else Tokens.TextMuted),
+        modifier = modifier
             .fillMaxWidth()
+            .semantics { selected = reading }
             .padding(start = if (heading.level == 3) 12.dp else 0.dp)
             .hoverable(source)
             .clickable(source, indication = null, role = Role.Button) { onSelect(heading) }

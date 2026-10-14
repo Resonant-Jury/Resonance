@@ -36,7 +36,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -63,7 +62,6 @@ import com.resonance.design.OrganicConfirmDialog
 import com.resonance.design.OrganicEmptyState
 import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicInlineBar
-import com.resonance.design.LocalHeaderChrome
 import com.resonance.design.inlineBarTop
 import com.resonance.design.LocalWindowLayout
 import com.resonance.design.OrganicLink
@@ -127,39 +125,32 @@ enum class SettingsSection(
 
 /**
  * Settings (SettingsClient's menu): one row per section — glyph, name, chevron — between wavy
- * rules, each opening its own screen. No panels: the web drops the frames at this width. On a
- * phone the bar says 設定, as Messages' says 私訊, and the rows start under it as Messages' do; a
- * tablet's header keeps its middle for pages of their own, so its menu is headed in the page.
+ * rules, each opening its own screen. No panels: the web drops the frames at this width. The bar
+ * names the page, as it names any pushed page — 設定 beside a phone's arrow, in the middle of a
+ * tablet's header (as 私訊 heads Messages) — and the rows start under it as Messages' do.
  */
 @Composable
 fun SettingsScreen(open: (Route) -> Unit, back: () -> Unit) {
     val scroll = rememberScrollState()
-    val phone = LocalHeaderChrome.current == null
     // The bar lies over the page, so what scrolls shows right up to its pen line.
     Box(Modifier.fillMaxSize().cream()) {
         Column(Modifier.verticalScroll(scroll).readableColumn().padding(top = inlineBarTop()).settingsPadding().padding(bottom = 40.dp)) {
-            if (!phone) BasicText(
-                L10n.Settings.title,
-                style = AppFonts.heading(28f, lineHeight = 1.2f),
-                modifier = Modifier.padding(bottom = 18.dp).semantics { heading() },
-            )
             SettingsSection.entries.forEachIndexed { i, section ->
                 if (i > 0) WavyDivider(seed = 40.0 + section.webIndex * 6, modifier = Modifier.padding(vertical = 2.dp))
                 MenuRow(section) { open(Route.SettingsSection(section)) }
             }
         }
-        OrganicInlineBar(L10n.App.Nav.back, back, title = if (phone) L10n.Settings.title else null, scrolled = scroll.scrolledPast20())
+        OrganicInlineBar(L10n.App.Nav.back, back, title = L10n.Settings.title, scrolled = scroll.scrolledPast20())
     }
 }
 
 /**
  * The settings pages' 20 at the sides and foot. Their first line starts under the bar as Messages'
- * list does — 16 under a phone's bar (the web's 18 under the line), on a tablet 32 under the
- * header's pen line (round 5 E2).
+ * list does, on a phone and a tablet alike — 16 under the bar's foot (the web's 18 under the line).
  */
 @Composable
 private fun Modifier.settingsPadding(): Modifier =
-    padding(start = 20.dp, end = 20.dp, bottom = 20.dp, top = titledBarGap(LocalWindowLayout.current.cls, tabletAir = true))
+    padding(start = 20.dp, end = 20.dp, bottom = 20.dp, top = titledBarGap(LocalWindowLayout.current.cls, tabletAir = false))
 
 @Composable
 private fun MenuRow(section: SettingsSection, onClick: () -> Unit) {
