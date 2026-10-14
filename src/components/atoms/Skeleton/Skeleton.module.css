@@ -13,11 +13,13 @@
      shimmer reads as a lighter version of that specific card. We read it via a
      var() fallback rather than declaring --skeleton-highlight on .block — a local
      declaration would shadow the value inherited from the card and pin every
-     skeleton to the theme accent. */
+     skeleton to the theme accent. The highlight meets the cream in OKLab, not
+     OKLCH: mixed by hue, a lavender card's light swung through red to pink on
+     its way to cream (and a blue one's through green). */
   background: linear-gradient(
     90deg,
     color-mix(in oklch, color-mix(in oklch, var(--color-cream-dark) 94%, var(--color-text)) 85%, transparent) 25%,
-    color-mix(in oklch, var(--skeleton-highlight, var(--color-terracotta-light)) 50%, var(--color-cream)) 37%,
+    color-mix(in oklab, var(--skeleton-highlight, var(--color-terracotta-light)) 50%, var(--color-cream)) 37%,
     color-mix(in oklch, color-mix(in oklch, var(--color-cream-dark) 94%, var(--color-text)) 85%, transparent) 63%
   );
   background-size: 400% 100%;
