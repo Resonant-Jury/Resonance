@@ -17,6 +17,11 @@ struct PenNameField: View {
     @Binding var status: PenNameStatus
     var current: String?
     var seed: Double = 31
+    /// Keep the status line's room while there is nothing to say (onboarding, where the name is being
+    /// chosen and every keystroke checks it), so the form doesn't jump as the check runs; without it
+    /// (Settings, whose name is already the person's) the line comes only with a check, and the field
+    /// keeps the form's 24 to the next label.
+    var reservesStatus = true
     @Environment(SessionStore.self) private var session
     @State private var attempt = 0
 
@@ -31,8 +36,10 @@ struct PenNameField: View {
                     let clean = PenName.sanitized(typed)
                     if clean != typed { text = clean }
                 }
-            // The line keeps its height when empty, so the form doesn't jump as the check runs.
-            statusLine.lineLimit(1).frame(height: 18, alignment: .leading)
+            // The line keeps its height when empty (`reservesStatus`), so the form doesn't jump as the check runs.
+            if reservesStatus || status != .idle {
+                statusLine.lineLimit(1).frame(height: 18, alignment: .leading)
+            }
         }
         .task(id: Check(name: PenName.normalized(text), attempt: attempt)) { await check() }
     }

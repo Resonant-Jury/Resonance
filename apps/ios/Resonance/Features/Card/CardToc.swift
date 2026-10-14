@@ -114,6 +114,9 @@ struct CardToc: View {
     static let page: CGFloat = 0.9
     /// The fade at an end the list can still scroll toward.
     static let fade: CGFloat = 16
+
+    /// The most of the list that shows at once in a window `window` tall: min(360, half of it).
+    static func maxListHeight(window: CGFloat) -> CGFloat { min(360, window * 0.5) }
     private static let listSpace = "card.toc.list"
 
     private struct Metrics: Equatable {
@@ -133,6 +136,7 @@ struct CardToc: View {
     /// The reader has the list under a finger (or it is still coasting from one).
     @State private var listMoving = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.window) private var window
 
     private var track: CGFloat { metrics.visible }
     private var thumb: ScrollThumb? {
@@ -198,8 +202,9 @@ struct CardToc: View {
         } action: { _, now in
             metrics = now
         }
-        // As tall as its headings, never taller than the rail leaves it.
-        .frame(maxHeight: max(1, metrics.content))
+        // As tall as its headings, at most min(360, half the window) — a sidebar's list, not the rail's
+        // whole height (the web's max-height: min(360px, 50vh)) — and never taller than the rail leaves it.
+        .frame(maxHeight: min(max(1, metrics.content), Self.maxListHeight(window: window.height)))
         .scrollEdgeFades(Self.fade)
     }
 

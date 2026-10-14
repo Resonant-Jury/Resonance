@@ -152,10 +152,15 @@ private struct ProfileSettings: View {
 
     var body: some View {
         if let me = session.me {
+            // The web's rhythm: the face 8 further under the bar than a section's first row (24 from its
+            // line) and 8 further from the first label (32), then 24 from each field to the next label and
+            // from the last field to Save.
             VStack(alignment: .leading, spacing: 24) {
                 ProfilePhotoRow(me: me)
+                    .padding(.vertical, 8)
                 Group {
-                    PenNameField(label: L10n.Settings.Profile.handle, text: $handle, status: $status, current: me.handle, seed: 31)
+                    PenNameField(label: L10n.Settings.Profile.handle, text: $handle, status: $status, current: me.handle, seed: 31,
+                                 reservesStatus: false)
                     OrganicTextField(L10n.Settings.Profile.bio, text: $bio, seed: 37)
                         .onChange(of: bio) { _, typed in
                             let capped = typed.prefix(utf16Units: PenName.bioMax)
@@ -174,7 +179,6 @@ private struct ProfileSettings: View {
                         .disabled(!canSave(me) && !saving)
                     if let error { ModalError(error) }
                 }
-                .padding(.top, 4)
             }
             .onAppear {
                 guard !filled else { return }
