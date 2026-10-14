@@ -1,6 +1,7 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import type { AuthUser } from '@/lib/auth/types';
 import { handleKey, handleRef, handleTakenByOther, reservable, reserveHandle } from '@/lib/db/firestore/handles';
+import { avatarColorFor } from '@/lib/design/avatarColors';
 import { hasPenName } from './conversations';
 import { ApiFailure } from './http';
 import { getMe } from './service';
@@ -64,7 +65,8 @@ export async function createProfile(
       phoneHash: '',
       avatarSeed,
       initials: input.handle.slice(0, 2).toUpperCase(),
-      accentColor: 'oklch(88% 0.08 55)',
+      // Their avatar's own colour until they upload a photo, one of a few, by uid (lib/design/avatarColors).
+      accentColor: avatarColorFor(user.id),
       joinedAt: FieldValue.serverTimestamp(),
       handleChangedAt: FieldValue.serverTimestamp(),
     });

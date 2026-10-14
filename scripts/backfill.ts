@@ -19,6 +19,9 @@
  *       profile photos stored before photos were cut square → cut square as a new one is (the middle,
  *       256 px, WebP) under a new key on record as their owner's, the profile pointing at it; the old
  *       picture stays (reads the photos by their public URLs; --apply needs R2 credentials)
+ *   npx tsx scripts/backfill.ts avatar-colors [--apply] [--emulator]
+ *       profiles still wearing the one avatar colour every profile was given (or none) → their own,
+ *       picked by uid from lib/design/avatarColors as a new profile's is; any other colour stays
  *   npx tsx scripts/backfill.ts notes         [--apply] [--emulator]
  *       notes left before notes went into the thread → a `kind: 'note'` message in the two people's
  *       conversation (never on an anonymous card; no unread counted; opens a missing conversation,
@@ -123,6 +126,11 @@ async function main() {
       await squareAvatars(db, storage, { apply, publicBases: [publicBase, ...formerBases], read });
       return;
     }
+    case 'avatar-colors': {
+      const { backfillAvatarColors } = await import('./backfills/avatarColors');
+      await backfillAvatarColors(db, { apply });
+      return;
+    }
     case 'notes': {
       const { backfillNotes } = await import('./backfills/notes');
       await backfillNotes(db, { apply });
@@ -154,7 +162,7 @@ async function main() {
       return;
     }
     default:
-      throw new Error(`Unknown task "${task ?? ''}" (anonymous | handles | edits | storage-host | rekey-images | rehost-images | square-avatars | notes | anonymous-bells | orphan-notes | link-previews)`);
+      throw new Error(`Unknown task "${task ?? ''}" (anonymous | handles | edits | storage-host | rekey-images | rehost-images | square-avatars | avatar-colors | notes | anonymous-bells | orphan-notes | link-previews)`);
   }
 }
 

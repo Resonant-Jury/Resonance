@@ -14,6 +14,8 @@ import { backfillNotes } from '../../scripts/backfills/notes';
 import { sendNote } from '@/lib/api/v1/conversations';
 import { backfillLinkPreviews } from '../../scripts/backfills/linkPreviews';
 import { backfillAnonymousBells } from '../../scripts/backfills/anonymousBells';
+import { backfillAvatarColors } from '../../scripts/backfills/avatarColors';
+import { avatarColorFor, LEGACY_AVATAR_COLOR } from '@/lib/design/avatarColors';
 import type { PreviewFetch } from '@/lib/links/preview';
 
 // The one-off backfills (scripts/backfill.ts) against the Firestore emulator:
@@ -85,6 +87,31 @@ describe('anonymous-bells', () => {
     expect((await data('notifications/res-masked'))!.payload).toMatchObject({ anonymous: true });
     for (const id of ['note-named', 'note-gone', 'link-masked']) expect((await data(`notifications/${id}`))!.payload, id).not.toHaveProperty('anonymous');
     expect(await backfillAnonymousBells(db, { apply: true, log: quiet })).toMatchObject({ missing: 0 });
+  });
+});
+
+describe('avatar-colors', () => {
+  // Every profile was given the same terracotta, so no face told one person from another.
+  it("gives each profile still in the one colour (or none) its own by uid, and leaves every other colour and field", async () => {
+    const at = joined('2026-09-01T00:00:00Z');
+    await Promise.all([
+      db.doc('users/nina').set({ handle: 'nina', accentColor: LEGACY_AVATAR_COLOR, avatarUrl: 'https://img.resonance.test/avatars/a.webp', joinedAt: at }),
+      db.doc('users/u1').set({ handle: 'u1', accentColor: '' }),
+      db.doc('users/dawn').set({ handle: 'dawn' }),
+      db.doc('users/kept').set({ handle: 'kept', accentColor: 'oklch(80% 0.1 200)' }),
+    ]);
+    // nina's own isn't the old one, so the test sees a change.
+    expect(avatarColorFor('nina')).not.toBe(LEGACY_AVATAR_COLOR);
+
+    expect(await backfillAvatarColors(db, { apply: false, log: quiet })).toMatchObject({ scanned: 4, missing: 3, recolored: 0 });
+    expect((await data('users/nina'))!.accentColor).toBe(LEGACY_AVATAR_COLOR);
+
+    expect(await backfillAvatarColors(db, { apply: true, log: quiet })).toMatchObject({ recolored: 3 });
+    expect(await data('users/nina')).toEqual({ handle: 'nina', accentColor: avatarColorFor('nina'), avatarUrl: 'https://img.resonance.test/avatars/a.webp', joinedAt: at });
+    expect((await data('users/u1'))!.accentColor).toBe(avatarColorFor('u1'));
+    expect((await data('users/dawn'))!.accentColor).toBe(avatarColorFor('dawn'));
+    expect((await data('users/kept'))!.accentColor).toBe('oklch(80% 0.1 200)');
+    expect(await backfillAvatarColors(db, { apply: true, log: quiet })).toMatchObject({ missing: 0 });
   });
 });
 

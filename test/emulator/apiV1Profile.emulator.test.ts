@@ -3,6 +3,7 @@ import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { ApiFailure } from '@/lib/api/v1/http';
 import { createProfile, handleAvailable, updateProfile } from '@/lib/api/v1/profile';
+import { avatarColorFor } from '@/lib/design/avatarColors';
 import { reportCard } from '@/lib/api/v1/safety';
 import { CreateProfileRequest, UpdateProfileRequest } from '@/lib/api/v1/schemas';
 import type { AuthUser } from '@/lib/auth/types';
@@ -51,7 +52,7 @@ describe('createProfile', () => {
     expect(me).toMatchObject({ id: 'nina', handle: '小夜', initials: '小夜', bio: null, region: 'TW', primaryLocale: 'zh-TW' });
     expect(me.handleChangedAt).toMatch(/^\d{4}-/);
     const doc = (await db.doc('users/nina').get()).data()!;
-    expect(doc).toMatchObject({ handleLower: '小夜', autoTranslateTo: ['en'], verified: false, phoneHash: '', accentColor: 'oklch(88% 0.08 55)' });
+    expect(doc).toMatchObject({ handleLower: '小夜', autoTranslateTo: ['en'], verified: false, phoneHash: '', accentColor: avatarColorFor(newcomer.id) });
     expect(doc.avatarSeed).toBe(String([...'nina'].reduce((s, c) => s + c.charCodeAt(0), 0)));
   });
 
