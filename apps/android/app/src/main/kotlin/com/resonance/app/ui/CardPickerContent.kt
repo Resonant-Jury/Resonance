@@ -18,6 +18,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
+import com.resonance.design.ModalScrollFade
+import com.resonance.design.scrollFade
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -123,7 +125,9 @@ internal fun CardPickList(
     /** A quiet line under the rows (why some cards are not listed). */
     footnote: String? = null,
 ) {
-    Column(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.5f).dp).verticalScroll(rememberScrollState())) {
+    val scroll = rememberScrollState()
+    // Fading at the side it can still move toward, as the modal's own content does.
+    Column(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.5f).dp).scrollFade(scroll, ModalScrollFade).verticalScroll(scroll)) {
         lead?.invoke()
         if (cards.isEmpty() && empty != null) {
             empty()

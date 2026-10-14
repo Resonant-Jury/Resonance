@@ -33,7 +33,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.input.pointer.pointerInput
 import com.resonance.design.OrganicVerticalRule
@@ -332,11 +331,20 @@ private fun ToolRule(offset: Double) {
 }
 
 /**
- * The toolbar's pen line: AppHeader's construction — ten turns across an
- * 800×54 box stretched over the toolbar, low in it, edge to edge.
+ * The toolbar's pen line: AppHeader's construction — an 800×54 box stretched over the toolbar, low
+ * in it, edge to edge — with as many turns as the width it is shown at takes ([ruleSteps]): a
+ * phone's few, not a desktop's ten squeezed in.
  */
-private fun Modifier.toolbarWave(seed: Double): Modifier = drawBehind {
-    val line = pointsToBezier(wavyPoints(800.0, 42 + 12 * 0.35, 2.0, seed, 10)).toPath(1f)
+private fun Modifier.toolbarWave(seed: Double): Modifier = drawWithCache {
+    val line = pointsToBezier(wavyPoints(800.0, 42 + 12 * 0.35, 2.0, seed, ruleSteps(size.width / density))).toPath(1f)
     line.transform(Matrix().apply { scale(size.width / 800f, size.height / 54f) })
-    drawPath(line, Tokens.FieldBorderHover.copy(alpha = 0.45f), style = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round))
+    val pen = Stroke(Tokens.InkLight.toPx(), cap = StrokeCap.Round)
+    onDrawBehind { drawPath(line, Tokens.FieldBorderHover.copy(alpha = 0.45f), style = pen) }
 }
+
+/**
+ * wavyPath.ts `ruleSteps`: how many turns a hand-drawn rule across a box [width] dp wide takes —
+ * one per ~80, 4 at the fewest and 12 at the most (10 before it is measured).
+ */
+internal fun ruleSteps(width: Float): Int =
+    if (!(width > 0f)) 10 else (width / 80f).roundToInt().coerceIn(4, 12)

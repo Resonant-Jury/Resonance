@@ -296,7 +296,10 @@ fun StoryCard(
 ) {
     val palette = cardPalette(palette, content.accentHue, position)
     val seed = position * 77.0 + 13
-    StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier, isFirst, inset) { StoryCardBody(content, palette, seed) }
+    // A cover on its way shimmers in the card's own hue, as its skeleton does (StoryCard.tsx's --skeleton-highlight).
+    WithSkeletonHue(palette.hue) {
+        StoryBand(palette, seed + 17, isLast, 32.dp, 14.dp, modifier, isFirst, inset) { StoryCardBody(content, palette, seed) }
+    }
 }
 
 /** What a story card holds, band or bordered: cover, tags, title, excerpt, rule, byline (and the margin note). */
@@ -381,7 +384,9 @@ private fun ColumnScope.StoryCardSkeletonBody(palette: CardPalette, seed: Double
 fun BorderedStoryCard(content: StoryCardContent, position: Int, modifier: Modifier = Modifier, palette: Int? = null) {
     val palette = cardPalette(palette, content.accentHue, position)
     val seed = position * 77.0 + 13
-    BorderedCardFrame(palette, seed, modifier) { StoryCardBody(content, palette, seed) }
+    WithSkeletonHue(palette.hue) {
+        BorderedCardFrame(palette, seed, modifier) { StoryCardBody(content, palette, seed) }
+    }
 }
 
 /** [BorderedStoryCard] while its list is read: the same outline round shimmering blocks. */
@@ -443,14 +448,16 @@ fun MiniStoryCard(content: StoryCardContent, position: Int, isLast: Boolean = fa
     val palette = cardPalette(palette, content.accentHue, position)
     val seed = position * 71.0 + 19
     val accent = content.authorAccent ?: palette.accent
-    StoryBand(palette, seed + 17, isLast, 28.dp, 12.dp, modifier, inset = inset) {
-        OrganicImage(content.imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1 / 0.56f), grain = StoryGrain.Cover) {
-            if (content.imageUrl == null) Box(Modifier.fillMaxSize().background(accent))
-        }
-        CssText(content.title, AppFonts.Family.Heading, 17f, 700, lineHeight = 1.3f, modifier = Modifier.fillMaxWidth())
-        Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            HandDrawnAvatar(content.authorInitials, content.authorImageUrl, accent, 30.dp, content.avatarSeed)
-            BasicText(content.authorName, style = AppFonts.body(13f, 600, lineHeight = 1.4f))
+    WithSkeletonHue(palette.hue) {
+        StoryBand(palette, seed + 17, isLast, 28.dp, 12.dp, modifier, inset = inset) {
+            OrganicImage(content.imageUrl, seed + 5, Modifier.fillMaxWidth().aspectRatio(1 / 0.56f), grain = StoryGrain.Cover) {
+                if (content.imageUrl == null) Box(Modifier.fillMaxSize().background(accent))
+            }
+            CssText(content.title, AppFonts.Family.Heading, 17f, 700, lineHeight = 1.3f, modifier = Modifier.fillMaxWidth())
+            Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                HandDrawnAvatar(content.authorInitials, content.authorImageUrl, accent, 30.dp, content.avatarSeed)
+                BasicText(content.authorName, style = AppFonts.body(13f, 600, lineHeight = 1.4f))
+            }
         }
     }
 }

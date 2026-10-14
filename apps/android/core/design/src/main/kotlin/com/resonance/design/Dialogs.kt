@@ -166,6 +166,7 @@ fun OrganicModal(
                     .padding(16.dp),
                 contentAlignment = Alignment.Center,
             ) {
+                val scroll = rememberScrollState()
                 Column(
                     Modifier
                         .widthIn(max = maxWidth)
@@ -191,7 +192,9 @@ fun OrganicModal(
                                 drawPath(path, Tokens.ModalBorder, style = ink)
                             }
                         }
-                        .verticalScroll(rememberScrollState())
+                        // A card taller than the room scrolls, its words fading where there is more.
+                        .scrollFade(scroll, ModalScrollFade)
+                        .verticalScroll(scroll)
                         .padding(horizontal = 28.dp, vertical = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(ModalGap),
                     content = content,
@@ -201,6 +204,9 @@ fun OrganicModal(
         }
     }
 }
+
+/** How far a modal's scrolling content fades out at an edge with more beyond it: a hint, not a veil. */
+val ModalScrollFade = 18.dp
 
 /**
  * A modal's window, made like the activity's: edge to edge (its content laid out under the bars,

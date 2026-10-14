@@ -3,6 +3,7 @@ package com.resonance.app.thoughtmap
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -20,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
@@ -43,7 +43,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.focus.FocusRequester
@@ -67,6 +66,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.em
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.app.Session
@@ -82,7 +83,14 @@ import com.resonance.design.WavyDivider
 import com.resonance.design.WobRectShape
 import com.resonance.design.generated.IconName
 import com.resonance.design.generated.Tokens
-import com.resonance.design.organicSurface
+import com.resonance.design.ButtonFace
+import com.resonance.design.Grain
+import com.resonance.design.GrainMode
+import com.resonance.design.Mixes
+import com.resonance.design.OrganicButtonShape
+import com.resonance.design.OrganicIndication
+import com.resonance.design.ModalScrollFade
+import com.resonance.design.scrollFade
 import com.resonance.design.prefersReducedMotion
 import com.resonance.design.plainClickable
 import com.resonance.design.wavyLinePath
@@ -207,17 +215,24 @@ private fun BoxScope.Chrome(store: ThoughtMapStore, session: Session, leave: () 
     // The controls float over the map's boxes and arrows, so none is framed in a pen line
     // that would tangle with theirs: the tools are tonal pills, the one verb (add a card) solid.
     // Leave: the web's back control, arrow-right mirrored (icon only on a phone) — the workspace's way
-    // back too, whichever way it was come into (round 5 E5).
+    // back too, whichever way it was come into (round 5 E5). Exactly as tall as the two tools across
+    // the top (measured: their label's line box decides it), and only a little wider than tall.
+    val density = LocalDensity.current
+    var toolsHeight by remember { mutableIntStateOf(0) }
+    val leaveHeight = if (toolsHeight > 0) with(density) { toolsHeight.toDp() } else with(density) { (14 * 1.3f).sp.toDp() } + 18.dp
     OrganicButton(
         L10n.Me.ThoughtMap.leave,
-        Modifier.align(Alignment.TopStart).padding(start = 20.dp, top = top),
-        variant = ButtonVariant.Tonal, icon = IconName.ArrowRight, small = true, iconOnly = true, iconSize = 15.dp, mirrorIcon = true, roomy = true,
+        Modifier.align(Alignment.TopStart).padding(start = 20.dp, top = top).size(leaveHeight * LEAVE_ASPECT, leaveHeight),
+        variant = ButtonVariant.Tonal, icon = IconName.ArrowRight, small = true, iconOnly = true, iconSize = 15.dp, mirrorIcon = true,
     ) {
         store.commitEditors()
         leave()
     }
 
-    Row(Modifier.align(Alignment.TopEnd).padding(end = 20.dp, top = top), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(
+        Modifier.align(Alignment.TopEnd).padding(end = 20.dp, top = top).onSizeChanged { toolsHeight = it.height },
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         OrganicButton(L10n.Me.ThoughtMap.addGroupShort, variant = ButtonVariant.Tonal, icon = IconName.Frame, small = true, iconSize = 15.dp) {
             // The web's blur commits a title being typed before the new region takes over the editor.
             store.commitEditors()
@@ -258,39 +273,56 @@ private fun BoxScope.Chrome(store: ThoughtMapStore, session: Session, leave: () 
     }
 }
 
+/** Leave's width for its height: a rounded rectangle beside the tools' pills, not a pill of its own. */
+private const val LEAVE_ASPECT = 1.2f
+
 /**
- * The zoom cluster: − 100% + and the eye (fit), on a wobbly sheet of card paper
- * — the cards' fill and grain, no pen line — like the paper buttons above.
+ * The zoom cluster: − 100% + and the eye (fit), on the face the map's other controls wear — the
+ * tonal buttons' peach and grain inside their hand-drawn pill (OrganicButtonShape: gentle turns,
+ * corners drifting), no pen line to tangle with the map's — so the four read as one control with
+ * Leave and 分類 rather than a plain card-paper box. Its glyphs and percentage take the tonal label's ink.
  */
 @Composable
 private fun ZoomCluster(store: ThoughtMapStore, modifier: Modifier) {
     val pct by remember(store) { derivedStateOf { (store.camera.s * 100).roundToInt() } }
+    val face = remember { ButtonFace.of(ButtonVariant.Tonal) }
+    val shape = remember { OrganicButtonShape(ZOOM_SEED) }
     Row(
         modifier
-            .organicSurface(Tokens.CardBg, Color.Transparent, radius = 18.0, seed = 41.0)
-            .padding(vertical = 6.dp, horizontal = 10.dp),
+            .drawWithCache {
+                val outline = shape.createOutline(size, layoutDirection, this)
+                val grain = Grain.brush(GrainMode.Tile, face.grainTile, size, density, face.grainAlpha)
+                onDrawBehind {
+                    drawOutline(outline, face.fill)
+                    grain?.let { drawOutline(outline, it, alpha = face.grainAlpha) }
+                }
+            }
+            .padding(vertical = 4.dp, horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        ZoomButton(IconName.Minus, L10n.Me.ThoughtMap.zoomOut) { store.commitEditors(); store.zoom(1 / 1.25) }
+        ZoomButton(IconName.Minus, L10n.Me.ThoughtMap.zoomOut, face.press) { store.commitEditors(); store.zoom(1 / 1.25) }
         Box(Modifier.widthIn(min = 38.dp), contentAlignment = Alignment.Center) {
-            BasicText("$pct%", style = AppFonts.body(12f, lineHeight = 1.3f, color = Tokens.TextMuted).copy(fontFeatureSettings = "tnum"))
+            BasicText("$pct%", style = AppFonts.body(12f, 600, lineHeight = 1.3f, color = face.label).copy(fontFeatureSettings = "tnum"))
         }
-        ZoomButton(IconName.Plus, L10n.Me.ThoughtMap.zoomIn) { store.commitEditors(); store.zoom(1.25) }
-        ZoomButton(IconName.Eye, L10n.Me.ThoughtMap.zoomFit) { store.commitEditors(); store.fit() }
+        ZoomButton(IconName.Plus, L10n.Me.ThoughtMap.zoomIn, face.press) { store.commitEditors(); store.zoom(1.25) }
+        ZoomButton(IconName.Eye, L10n.Me.ThoughtMap.zoomFit, face.press) { store.commitEditors(); store.fit() }
     }
 }
 
+/** The cluster's wobble seed (the web's ZOOM_SEED). */
+private const val ZOOM_SEED = 41.0
+
 @Composable
-private fun ZoomButton(icon: IconName, label: String, onClick: () -> Unit) {
+private fun ZoomButton(icon: IconName, label: String, press: Color, onClick: () -> Unit) {
     Box(
         Modifier
-            .size(30.dp)
-            .clip(CircleShape)
-            .plainClickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+            .size(34.dp)
+            // A press washes a wobbly disc round the glyph, as the tonal buttons' own press does.
+            .clickable(interactionSource = null, indication = OrganicIndication(press, inset = 2.dp), role = Role.Button, onClickLabel = label, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
-    ) { OrganicIcon(icon, size = 16.dp, color = Tokens.TextMuted) }
+    ) { OrganicIcon(icon, size = 16.dp, color = Mixes.ButtonOnTonal) }
 }
 
 // The tray
@@ -303,6 +335,7 @@ private fun ZoomButton(icon: IconName, label: String, onClick: () -> Unit) {
 fun MapTray(store: ThoughtMapStore) {
     val config = LocalConfiguration.current
     val cards = store.trayCards
+    val scroll = rememberScrollState()
     Box(
         Modifier.fillMaxSize().background(MapInk.scrim).plainClickable { store.trayOpen = false },
         contentAlignment = Alignment.Center,
@@ -322,7 +355,8 @@ fun MapTray(store: ThoughtMapStore) {
                 }
                 // A tap on the card itself is not a tap on the backdrop.
                 .plainClickable { }
-                .verticalScroll(rememberScrollState())
+                .scrollFade(scroll, ModalScrollFade)
+                .verticalScroll(scroll)
                 .padding(vertical = 12.dp, horizontal = 16.dp),
         ) {
             BasicText(

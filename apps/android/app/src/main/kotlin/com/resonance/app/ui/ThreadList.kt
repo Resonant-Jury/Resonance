@@ -14,6 +14,8 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
@@ -718,7 +720,13 @@ private fun Modifier.overlapAbove(by: Dp): Modifier = layout { measurable, const
 /**
  * Drag a message toward the middle of the screen (theirs to the right, yours to the left) and the
  * reply glyph grows in behind it; past [SWIPE_REPLY_DP] a tick says it will take, and letting go
- * replies. It always springs back. A horizontal drag only, so scrolling the thread is not fought.
+ * replies. A horizontal drag only, so scrolling the thread is not fought.
+ *
+ * It always springs back — the row and the face beside it as one — whenever no finger holds it:
+ * after a release, a drag the system cancelled, or the swipe switched off mid-drag (the composer
+ * gone). The spring is the drag's own state ([collectIsDraggedAsState]), not the end of a gesture,
+ * so nothing that cuts a gesture short can leave a message (or their face) pushed aside; a new
+ * drag takes the row from wherever the spring had it.
  */
 @Composable
 private fun SwipeToReply(enabled: Boolean, mine: Boolean, onReply: () -> Unit, content: @Composable () -> Unit) {
@@ -736,19 +744,22 @@ private fun SwipeToReply(enabled: Boolean, mine: Boolean, onReply: () -> Unit, c
             if (past) haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
         }
     }
+    val drags = remember { MutableInteractionSource() }
+    val held by drags.collectIsDraggedAsState()
+    LaunchedEffect(held, enabled) {
+        if (held && enabled) return@LaunchedEffect
+        ticked = false
+        if (pulled != 0f) animate(pulled, 0f, animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium)) { v, _ -> pulled = v }
+    }
     // Past the threshold the message gives, but with resistance.
     val shown = if (pulled <= threshold) pulled else threshold + (pulled - threshold) * 0.3f
     Box(
         Modifier
             .fillMaxWidth()
             .draggable(
-                state, Orientation.Horizontal, enabled = enabled,
-                onDragStopped = {
-                    val replied = pulled >= threshold
-                    ticked = false
-                    if (replied) onReply()
-                    animate(pulled, 0f, animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium)) { v, _ -> pulled = v }
-                },
+                state, Orientation.Horizontal, enabled = enabled, interactionSource = drags,
+                // Read before the spring (which waits for the next frame) moves it.
+                onDragStopped = { if (pulled >= threshold) onReply() },
             ),
     ) {
         if (pulled > 0f) {

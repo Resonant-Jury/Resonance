@@ -497,10 +497,13 @@ private fun phoneBarTitle() = AppFonts.heading(PHONE_BAR_TITLE, 700, lineHeight 
 private const val PHONE_BAR_TITLE = 20f
 
 /**
- * How far a phone bar's title drops below where its line box sets it. CJK ideographs fill the em box
- * evenly, so a CJK title centred by the heading face's line metrics reads higher beside the mark than
- * the wordmark, whose weight sits low at its x-height (measured on both apps: 私訊's ink 1.6dp higher
- * against the wave than "Resonance"'s). 0.08em brings it level; a Latin title stays. iOS's barTitleDrop.
+ * How far a tab's title in the brand's place drops below where its line box sets it. CJK ideographs
+ * fill the em box evenly, so a CJK title centred by the heading face's line metrics reads higher
+ * beside the mark than the wordmark, whose weight sits low at its x-height (measured on both apps:
+ * 私訊's ink 1.6dp higher against the wave than "Resonance"'s). 0.08em brings it level; a Latin title
+ * stays. Beside a pushed page's arrow there is no wordmark to match: the title is centred on the
+ * arrow as its line box sets it (寫一張新卡片's ink 0.5dp from the arrow's middle; dropped, 2.1dp
+ * under it). iOS's barTitleDrop.
  */
 internal fun barTitleDrop(title: String): Dp =
     if (title.any { Character.isIdeographic(it.code) }) (PHONE_BAR_TITLE * 0.08f).dp else 0.dp
@@ -583,7 +586,7 @@ fun OrganicPageTitle(title: String, modifier: Modifier = Modifier, trailing: @Co
 
 /**
  * Pushed-screen bar (AppHeader's phone takeover): the bare back arrow and,
- * when given, the screen's title in Playfair 20/700 beside it; trailing
+ * when given, the screen's title in Playfair 20/700 beside it, level with the arrow; trailing
  * actions at the end. Edged by the header's wavy line.
  *
  * On a medium or expanded window (round 5, part C) a pushed page's bar is the whole header — no
@@ -608,6 +611,8 @@ fun OrganicInlineBar(
     titleShown: Boolean = true,
     /** The page's context when it isn't a title (a thread's person): the middle of a tablet's header, beside the arrow on a phone. */
     centre: (@Composable RowScope.() -> Unit)? = null,
+    /** [title] is the page's own (a card's, risen from the article): a tablet's header sets it a step larger ([TabletPageTitle]). */
+    pageTitle: Boolean = false,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     val chrome = LocalHeaderChrome.current
@@ -620,7 +625,7 @@ fun OrganicInlineBar(
     }
     // A phone's title beside the arrow is 20 bold; a tablet header's context, an inline title's 17
     // semibold (round 5 D5: iPadOS's inline title), one line, truncated.
-    val titleStyle = if (chrome != null) AppFonts.heading(17f, 600, lineHeight = 1.25f).copy(letterSpacing = (-0.01).em)
+    val titleStyle = if (chrome != null) AppFonts.heading(if (pageTitle) TabletPageTitle else 17f, 600, lineHeight = 1.25f).copy(letterSpacing = (-0.01).em)
         else phoneBarTitle()
     val titleText: @Composable (Modifier) -> Unit = { m ->
         BasicText(
@@ -648,7 +653,8 @@ fun OrganicInlineBar(
             back()
             if (title != null) {
                 Spacer(Modifier.width(4.dp))
-                titleText(Modifier.weight(1f).offset(y = barTitleDrop(title)))
+                // Level with the arrow: no brand-place drop here (barTitleDrop).
+                titleText(Modifier.weight(1f))
             } else {
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     leading()
@@ -707,6 +713,12 @@ object InlineBarCentre {
         return if (r >= MIN) r else null
     }
 }
+
+/**
+ * A card's title in the middle of a tablet's header, once the article's own has gone up under it:
+ * the context's 17 two steps up (the owner's "a little bigger"), still semibold — iPad's twin.
+ */
+const val TabletPageTitle = 19f
 
 /** The pushed bar's title coming in once the page's own has scrolled under the header. */
 private const val TITLE_FADE_MILLIS = 160

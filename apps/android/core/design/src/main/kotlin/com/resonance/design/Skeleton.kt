@@ -155,8 +155,11 @@ fun StorySkeleton(modifier: Modifier = Modifier) {
     }
 }
 
-/** Provides a card's own shimmer (`oklch(88% 0.08 hue)`) to the skeletons inside it. */
+/**
+ * Provides a card's own shimmer (`oklch(88% 0.08 hue)`, StoryCard.tsx's `--skeleton-highlight`) to
+ * the skeletons inside it — a cover on its way included.
+ */
 @Composable
-internal fun WithSkeletonHue(hue: Double, content: @Composable () -> Unit) {
+fun WithSkeletonHue(hue: Double, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalSkeletonHighlight provides Mixes.skeletonHighlight(hue), content = content)
 }

@@ -23,6 +23,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
+import com.resonance.design.ModalScrollFade
+import com.resonance.design.scrollFade
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.DisposableEffect
@@ -587,8 +589,13 @@ private fun SharedMediaContent(model: ThreadModel, opener: LinkOpener, onClose: 
         if (cards.isEmpty() && links.isEmpty()) {
             BasicText(L10n.Messages.mediaEmpty, style = AppFonts.body(13f, lineHeight = 1.3f, color = Tokens.TextMuted))
         }
+        val scroll = rememberScrollState()
         Column(
-            Modifier.heightIn(max = minOf(420f, LocalConfiguration.current.screenHeightDp * 0.55f).dp).verticalScroll(rememberScrollState()),
+            Modifier
+                .heightIn(max = minOf(420f, LocalConfiguration.current.screenHeightDp * 0.55f).dp)
+                // Fading at the side it can still move toward, as the modal's own content does.
+                .scrollFade(scroll, ModalScrollFade)
+                .verticalScroll(scroll),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             if (cards.isNotEmpty()) Column {

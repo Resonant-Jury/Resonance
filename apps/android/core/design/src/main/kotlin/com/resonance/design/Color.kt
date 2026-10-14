@@ -157,15 +157,27 @@ object Mixes {
     /** Skeleton's sand: color-mix(color-mix(cream-dark 94%, text) 85%, transparent). */
     val SkeletonBase = OklchColor.parse("oklch(88.98% 0.01872 74.1 / 0.85)") ?: Tokens.CreamDark
 
-    /** Skeleton's shimmer: color-mix(highlight 50%, cream), the highlight `oklch(88% 0.08 hue)` (terracotta-light by default). */
-    fun skeletonHighlight(hue: Double = 55.0): Color =
-        OklchColor.parse("oklch(92.25% 0.0475 ${mixHue(hue, 75.0)})") ?: Tokens.TerracottaLight
+    /**
+     * Skeleton's shimmer: `color-mix(in oklab, highlight 50%, cream)`, the highlight
+     * `oklch(88% 0.08 hue)` (terracotta-light, hue 55, by default). Mixed in OKLab — the average
+     * of L, a and b — not round the hue circle: halfway round it a lavender card's (290) light
+     * swung through red to pink and a blue one's (215) to green.
+     */
+    fun skeletonHighlight(hue: Double = 55.0): Color {
+        val (l, c, h) = skeletonHighlightOklch(hue)
+        return OklchColor.of(l, c, h)
+    }
 
-    /** Halfway round the shorter arc between two hues, as CSS interpolates them. */
-    private fun mixHue(a: Double, b: Double): Double {
-        var d = b - a
-        if (d > 180) d -= 360
-        if (d < -180) d += 360
-        return ((a + d / 2) % 360 + 360) % 360
+    /** [skeletonHighlight] as OKLCH numbers (L 0…1, C, H in degrees). */
+    internal fun skeletonHighlightOklch(hue: Double): Triple<Double, Double, Double> {
+        fun lab(l: Double, c: Double, h: Double) = Triple(l, c * cos(Math.toRadians(h)), c * sin(Math.toRadians(h)))
+        // --color-cream: oklch(96.5% 0.015 75).
+        val (l1, a1, b1) = lab(0.88, 0.08, hue)
+        val (l2, a2, b2) = lab(0.965, 0.015, 75.0)
+        val l = (l1 + l2) / 2
+        val a = (a1 + a2) / 2
+        val b = (b1 + b2) / 2
+        val h = (Math.toDegrees(kotlin.math.atan2(b, a)) + 360) % 360
+        return Triple(l, kotlin.math.sqrt(a * a + b * b), h)
     }
 }

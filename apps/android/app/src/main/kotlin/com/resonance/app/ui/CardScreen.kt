@@ -6,6 +6,17 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import com.resonance.design.CardPageColumns
+import com.resonance.design.StoryAnchors
+import com.resonance.design.StoryToc
+import com.resonance.design.TocHeading
+import com.resonance.design.WithSkeletonHue
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.gestures.scrollable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onPlaced
 import com.resonance.design.LocalWindowLayout
 import com.resonance.design.cardListLayout
 
@@ -268,6 +279,19 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
     // One centred column on phones and medium windows; on an expanded one the article and the author's rail.
     val columns = LocalWindowLayout.current.cardPage()
     val railed = columns.railStart != null
+    // Beside the rail, the story's h2 and h3 are its table of contents: a tap brings one 16 under the bar.
+    val anchors = remember(blocks) { StoryAnchors() }
+    val headings = remember(blocks) { StoryToc.headings(blocks) }
+    var listCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val scope = rememberCoroutineScope()
+    val reduced = context.prefersReducedMotion()
+    val density = LocalDensity.current
+    val onHeading: (TocHeading) -> Unit = { h ->
+        anchors.positionIn(listCoords, h.block)?.let { y ->
+            val by = y - with(density) { (top + HeadingLanding).toPx() }
+            scope.launch { if (reduced) list.scrollBy(by) else list.animateScrollBy(by) }
+        }
+    }
     // A tablet's article starts 32 under the header's pen line; its lists' headings have more air (round 5 E2).
     val cls = LocalWindowLayout.current.cls
     val articleTop = cls.firstContentGap(16.dp)
@@ -286,13 +310,15 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
                 // Related cards are the feed's kind of list: bands, or the bordered grid when expanded;
                 // the page's other lists follow it.
                 val relatedLayout = cardListLayout()
-                LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = top, bottom = 40.dp)) {
+                LazyColumn(Modifier.fillMaxSize().onPlaced { listCoords = it }, state = list, contentPadding = PaddingValues(top = top, bottom = 40.dp)) {
                     item(key = "article") {
                         Column(heading.onItem.padding(start = columns.start, end = columns.end).padding(top = articleTop)) {
                             ArticleHead(card, d.anonymous, byline = !railed, titleModifier = heading.onHeading) { open(Route.Author(it)) }
                             // The story alone is what the bar's progress measures (not the cover, title or lists).
                             Box(Modifier.onGloballyPositioned(progress::story)) {
-                                StoryMarkdown(blocks, openUrl, linkCards) { href, title -> CardEmbed(embeds.embedFor(href), href, title, open) }
+                                StoryMarkdown(blocks, openUrl, linkCards, headingAnchor = if (railed && headings.isNotEmpty()) anchors::anchor else null) { href, title ->
+                                    CardEmbed(embeds.embedFor(href), href, title, open)
+                                }
                             }
                             FlowRow(Modifier.padding(top = 32.dp, bottom = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 card.tags.forEach { TagPill(it, fill = Tokens.TerracottaLight) }
@@ -338,15 +364,16 @@ fun CardScreen(session: Session, key: String, preview: FeedCard?, open: (Route) 
     val railStart = columns.railStart
     if (railStart != null) {
         val shown = detail?.takeIf { phase == "loaded" }
-        if (shown != null) AuthorRail(shown.card, shown.anonymous, shown.isOwner, railStart, list, top) { open(Route.Author(it)) }
+        if (shown != null) AuthorRail(shown.card, shown.anonymous, shown.isOwner, railStart, list, top, headings, onHeading) { open(Route.Author(it)) }
         // While the card is read, the rail already shows whom the list said it is by.
-        else if (phase == "loading" && placeholder != null) AuthorRail(placeholder, placeholder.anonymous, false, railStart, null, top) { open(Route.Author(it)) }
+        else if (phase == "loading" && placeholder != null) AuthorRail(placeholder, placeholder.anonymous, false, railStart, null, top, emptyList(), {}) { open(Route.Author(it)) }
     }
     OrganicInlineBar(
         L10n.App.Nav.back, back, scrolled = list.scrolledPast20(),
         // A tablet's header has the card's title in its middle instead of the author beside the arrow.
         title = if (chrome != null) detail?.card?.title else null,
         titleShown = phase == "loaded" && titleGone,
+        pageTitle = true,
         leading = { if (chrome == null) detail?.let { d -> BarAuthor(d.card, d.anonymous, visible = phase == "loaded" && bylineGone && !railed) { open(Route.Author(it)) } } },
         progress = if (phase == "loaded") progress::shown else null,
     ) {
@@ -453,8 +480,11 @@ private fun ArticleHead(
         Spacer(Modifier.height(28.dp))
     }
     if (card.imageUrl != null) {
-        OrganicImage(card.imageUrl, (card.accentHue ?: 55.0) + 11, Modifier.fillMaxWidth().aspectRatio(1 / 0.52f)) {
-            Box(Modifier.fillMaxSize().background(Tokens.CreamDark))
+        // While it is on its way the cover shimmers in the card's own hue (CardDetailClient's `hue`).
+        WithSkeletonHue(card.accentHue ?: 55.0) {
+            OrganicImage(card.imageUrl, (card.accentHue ?: 55.0) + 11, Modifier.fillMaxWidth().aspectRatio(1 / 0.52f)) {
+                Box(Modifier.fillMaxSize().background(Tokens.CreamDark))
+            }
         }
         Spacer(Modifier.height(20.dp))
     }
@@ -517,13 +547,22 @@ private fun AuthorRegionFlag(region: String?, size: Dp) {
  * dot and "anonymous", no link — and to its owner the note that only they see it's theirs. Like
  * the web's sticky aside it stays 24 under the bar while the article scrolls, and goes up with
  * the article's end.
+ *
+ * 28 under the author, the story's table of contents ([StoryToc], CardToc.tsx). The rail never
+ * runs past the window (the web's `.aside` max-height: 24 clear of its foot): a long list scrolls
+ * in place. A drag anywhere else on the rail — or over a list with room to spare — scrolls the page.
  */
 @Composable
-private fun AuthorRail(card: FeedCard, anonymous: Boolean, isOwner: Boolean, x: Dp, list: LazyListState?, top: Dp, openAuthor: (String) -> Unit) {
+private fun AuthorRail(
+    card: FeedCard, anonymous: Boolean, isOwner: Boolean, x: Dp, list: LazyListState?, top: Dp,
+    headings: List<TocHeading>, onHeading: (TocHeading) -> Unit,
+    openAuthor: (String) -> Unit,
+) {
     val density = LocalDensity.current
     var height by remember { mutableIntStateOf(0) }
     // Level with the article's first line (a tablet's 32 under the header's pen line, round 5 E2).
     val pinned = with(density) { (top + LocalWindowLayout.current.cls.firstContentGap(24.dp)).roundToPx() }
+    val foot = with(density) { (RailFootRoom + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()).roundToPx() }
     val y by remember(list, pinned) {
         derivedStateOf {
             val info = list?.layoutInfo ?: return@derivedStateOf pinned
@@ -537,8 +576,15 @@ private fun AuthorRail(card: FeedCard, anonymous: Boolean, isOwner: Boolean, x: 
     Column(
         Modifier
             .offset { IntOffset(x.roundToPx(), y ?: -10_000) }
+            // As tall as the window leaves it under its pinned place.
+            .layout { measurable, constraints ->
+                val room = (constraints.maxHeight - pinned - foot).coerceAtLeast(0)
+                val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = room))
+                layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+            }
             .width(Tokens.CardRailW.dp)
-            .onSizeChanged { height = it.height },
+            .onSizeChanged { height = it.height }
+            .then(if (list != null) Modifier.scrollable(list, Orientation.Vertical, reverseDirection = true) else Modifier),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         if (named) Box(Modifier.plainClickable(onClickLabel = author!!.handle) { openAuthor(author.handle) }) {
@@ -557,8 +603,19 @@ private fun AuthorRail(card: FeedCard, anonymous: Boolean, isOwner: Boolean, x: 
         }
         mediumDate(card.publishedAt)?.let { BasicText(it, style = AppFonts.body(13f, color = Tokens.TextMuted)) }
         if (anonymous && isOwner) BasicText(L10n.Card.anonymousOwnerNote, style = AppFonts.body(14f, lineHeight = 1.6f, color = Tokens.TextMuted))
+        if (headings.isNotEmpty()) {
+            // The aside's 28 between the two (the column's own 4 on either side of it).
+            Spacer(Modifier.height(20.dp))
+            StoryToc(headings, L10n.Card.toc, onHeading, Modifier.weight(1f, fill = false))
+        }
     }
 }
+
+/** What the rail leaves clear under it (the web's 48 − its 24 above). */
+private val RailFootRoom = 24.dp
+
+/** Where a heading the table of contents was tapped for comes to rest: 16 under the bar (scroll-margin-top). */
+private val HeadingLanding = 16.dp
 
 /**
  * A card link standing alone in a story (CardEmbedLink), drawn as a block like a story link card

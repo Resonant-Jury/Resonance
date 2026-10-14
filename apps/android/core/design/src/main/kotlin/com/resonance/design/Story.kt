@@ -285,16 +285,19 @@ fun StoryMarkdown(
     blocks: List<StoryBlock>,
     onOpenUrl: (String) -> Unit,
     links: StoryLinkCards? = null,
+    /** On each heading (in a quote or a list too): where the table of contents finds it ([StoryAnchors]). */
+    headingAnchor: ((StoryBlock.Heading) -> Modifier)? = null,
     embed: @Composable (href: String, title: String) -> Unit,
 ) {
-    BlockColumn(blocks, ProseStyle.Body, Story(onOpenUrl, links, embed))
+    BlockColumn(blocks, ProseStyle.Body, Story(onOpenUrl, links, embed, headingAnchor))
 }
 
-/** What every block of one story is drawn with: its taps, its link cards and its card embeds. */
+/** What every block of one story is drawn with: its taps, its link cards, its card embeds and its headings' anchors. */
 private class Story(
     val onOpenUrl: (String) -> Unit,
     val links: StoryLinkCards?,
     val embed: @Composable (String, String) -> Unit,
+    val headingAnchor: ((StoryBlock.Heading) -> Modifier)?,
 )
 
 /**
@@ -323,7 +326,10 @@ private fun Block(block: StoryBlock, style: ProseStyle, story: Story) {
     val onOpenUrl = story.onOpenUrl
     when (block) {
         is StoryBlock.Paragraph -> RichCssText(block.runs, style, onOpenUrl)
-        is StoryBlock.Heading -> RichCssText(block.runs, if (block.level <= 2) ProseStyle.H2 else ProseStyle.H3, onOpenUrl, Modifier.semantics { heading() })
+        is StoryBlock.Heading -> RichCssText(
+            block.runs, if (block.level <= 2) ProseStyle.H2 else ProseStyle.H3, onOpenUrl,
+            Modifier.semantics { heading() }.then(story.headingAnchor?.invoke(block) ?: Modifier),
+        )
         StoryBlock.Blank -> Spacer(Modifier.height(em * 1.6f).clearAndSetSemantics { })
         is StoryBlock.Image -> StoryImage(block.url, block.alt, atStart = style.inQuote)
         is StoryBlock.CardEmbed -> Centred(style.inQuote) { story.embed(block.href, block.title) }

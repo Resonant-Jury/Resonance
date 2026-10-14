@@ -1,11 +1,5 @@
 package com.resonance.app.ui
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,7 +50,6 @@ import com.resonance.design.OrganicButton
 import com.resonance.design.OrganicIcon
 import com.resonance.design.TagPill
 import com.resonance.design.TagSize
-import com.resonance.design.fade
 import com.resonance.design.fieldHintStyle
 import com.resonance.design.fieldSurface
 import com.resonance.design.generated.IconName
@@ -68,8 +61,8 @@ import com.resonance.kit.l10n.L10n
  * field's line; terracotta while anything inside it has focus) holds the chosen
  * tags as bare `md` pills — one frame per layer, so none draws a pen line —
  * then the text input and one trailing action that follows the context: with
- * nothing typed it asks the model for tags (the sparkle breathes while it
- * thinks), with something typed it adds that tag. Done, a comma (，、 too) or
+ * nothing typed it asks the model for tags (the pen loop draws in the
+ * sparkle's place while it thinks), with something typed it adds that tag. Done, a comma (，、 too) or
  * the action adds; Backspace on an empty input takes the last tag back. The
  * pills wrap, and the input with its action goes down together once the line
  * is full ([TagFlow]). The helper line under it is the caller's.
@@ -91,12 +84,6 @@ fun TagField(
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     val canAdd = draft.isNotBlank()
-    // The sparkle breathes (the action fades as a whole: the button draws its label and glyph together) until the tags arrive.
-    val breath = if (suggesting && !canAdd) {
-        rememberInfiniteTransition(label = "tags-thinking").animateFloat(
-            0.45f, 1f, infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "tags-thinking-alpha",
-        ).value
-    } else 1f
     Box(
         Modifier
             .fillMaxWidth()
@@ -134,17 +121,15 @@ fun TagField(
                             .semantics { contentDescription = placeholder },
                     )
                 }
+                // Asking the model: the label stays 「AI 建議」 and the pen loop draws in the sparkle's
+                // place at its size, so the button never changes width (TagField's `loading`).
                 OrganicButton(
-                    when {
-                        canAdd -> L10n.Write.tagsAdd
-                        suggesting -> L10n.Write.tagsSuggesting
-                        else -> L10n.Write.tagsSuggest
-                    },
-                    modifier = Modifier.fade(breath),
+                    if (canAdd) L10n.Write.tagsAdd else L10n.Write.tagsSuggest,
                     variant = ButtonVariant.Tonal,
                     icon = if (canAdd) IconName.Plus else IconName.Sparkle,
                     iconSize = if (canAdd) 13.dp else 16.dp,
                     small = true,
+                    loading = !canAdd && suggesting,
                 ) { if (canAdd) onAdd() else onSuggest() }
             }
         }
