@@ -1,0 +1,16 @@
+/* The phone menu's heading. At the header's phone width (AppHeader, 720px) the
+   bar's brand slot says 設定, so the heading steps out of sight — kept for
+   screen readers — and the menu starts with its first row. */
+@media (max-width: 720px) {
+  .menuTitle {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}

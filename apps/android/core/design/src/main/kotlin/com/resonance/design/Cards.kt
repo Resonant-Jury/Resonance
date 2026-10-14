@@ -10,7 +10,9 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -110,6 +112,10 @@ internal fun imageBleed(w: Float, h: Float, magFactor: Double): Dp = ceil(min(w,
  * A remote image (or placeholder) in the organic clip, bleeding past its box
  * by the wobble's outward swing. `grain` lays the web's GrainOverlay over the
  * picture itself (StoryCard's covers carry StoryGrain.Cover).
+ *
+ * While the picture is on its way its place shimmers ([SkeletonCover]); the
+ * placeholder (a story card's stripes: "no picture") is for no address, a
+ * picture that couldn't be loaded, and under one that has.
  */
 @Composable
 fun OrganicImage(
@@ -134,10 +140,13 @@ fun OrganicImage(
                 .clip(BledShape(seed, bleed.value.toDouble(), radius, magFactor))
                 .then(if (grain > 0f) Modifier.grainOverlay(grain) else Modifier),
         ) {
-            placeholder()
+            var loading by remember(url) { mutableStateOf(url != null) }
+            if (loading) SkeletonCover() else placeholder()
             if (url != null) AsyncImage(
                 model = url, contentDescription = contentDescription, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
-                onError = onError?.let { report -> { _ -> report() } },
+                onLoading = { loading = true },
+                onSuccess = { loading = false },
+                onError = { loading = false; onError?.invoke() },
             )
             overlay?.invoke()
         }

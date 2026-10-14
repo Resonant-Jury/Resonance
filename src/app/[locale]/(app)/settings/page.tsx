@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { SketchLoader } from '@/components/atoms/SketchLoader/SketchLoader';
 import { useMyProfile } from '@/lib/data/hooks';
 import { SettingsClient } from './SettingsClient';
+import styles from './SettingsClient.module.css';
 
 // No server-side data on the hot path: the page shell is static, and the
 // profile loads client-direct from Firestore (AppShell already gates the
@@ -40,7 +41,9 @@ export default function SettingsPage() {
         />
       ) : (
         <>
+          {/* On a phone the header says 設定 already (AppHeader): this heading is for screen readers there. */}
           <h1
+            className={styles.menuTitle}
             style={{
               fontFamily: 'var(--font-heading)',
               fontSize: 'clamp(28px, 4vw, 36px)',

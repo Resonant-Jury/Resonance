@@ -5,6 +5,10 @@ import SwiftUI
 /// OrganicImage: a remote image cover-fitted inside a hand-drawn curve. As on
 /// the web, the picture bleeds past its box by the wobble's outward swing so
 /// the bulges land on real pixels rather than on nothing.
+///
+/// While the picture is on its way its place shimmers (a SkeletonBlock in the
+/// same clip); the placeholder — a story card's stripes, "no picture" — is for
+/// no address, a picture that couldn't be loaded, and under one that has.
 public struct OrganicImage<Placeholder: View>: View {
     let url: URL?
     let seed: Double
@@ -28,13 +32,21 @@ public struct OrganicImage<Placeholder: View>: View {
             let mag = min(w, h) * 0.05
             let bleed = (mag + 6 + 4).rounded(.up)
             ZStack {
-                placeholder
                 if let url {
                     LazyImage(url: url) { state in
                         if let image = state.image {
-                            image.resizable().scaledToFill()
+                            ZStack {
+                                placeholder
+                                image.resizable().scaledToFill()
+                            }
+                        } else if state.error != nil {
+                            placeholder
+                        } else {
+                            SkeletonBlock(height: nil, radius: 0)
                         }
                     }
+                } else {
+                    placeholder
                 }
                 if grain > 0 {
                     // Above the photo too (the web's overlay sits at z 10): ink at 2×.

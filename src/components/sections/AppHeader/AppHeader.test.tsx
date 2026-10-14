@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { useEffect } from 'react';
-import { renderWithIntl, screen, userEvent } from '@/../test/render';
+import { renderWithIntl, screen, userEvent, within } from '@/../test/render';
 import { AppChromeProvider, useAppChrome } from '@/components/providers/AppChrome';
 import { AppHeader } from './AppHeader';
 
@@ -55,6 +55,28 @@ describe('AppHeader row width', () => {
     renderWithIntl(<AppHeader user={user} signedIn authReady />);
     const row = screen.getByRole('link', { name: /Resonance|Messages/ }).parentElement!;
     expect(row.hasAttribute('data-full-bleed')).toBe(fullBleed);
+  });
+});
+
+// Settings names itself in the brand slot on a phone, as Messages does at every
+// width; both words are in the HTML and the module CSS shows one (720px).
+describe('AppHeader brand slot', () => {
+  afterEach(() => {
+    nav.pathname = '/home';
+  });
+
+  it('says Settings on the settings page for a phone, and keeps the brand for wider screens', () => {
+    nav.pathname = '/settings';
+    renderWithIntl(<AppHeader user={user} signedIn authReady />);
+    const brand = screen.getByRole('link', { name: /Settings/ });
+    expect(within(brand).getByText('Settings')).toBeInTheDocument();
+    expect(within(brand).getByText('Resonance')).toBeInTheDocument();
+  });
+
+  it('says only Resonance elsewhere', () => {
+    renderWithIntl(<AppHeader user={user} signedIn authReady />);
+    expect(screen.queryByRole('link', { name: /Settings/ })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Resonance' })).toBeInTheDocument();
   });
 });
 

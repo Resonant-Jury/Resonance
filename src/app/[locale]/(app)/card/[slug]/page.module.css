@@ -39,10 +39,13 @@
   text-wrap: pretty;
 }
 
-/* Right rail: author intro on top, ToC below; sticks while the article scrolls. */
+/* Right rail: author intro on top, ToC below; sticks while the article scrolls.
+   It never runs past the window: a long ToC scrolls inside it (CardToc). */
 .aside {
   position: sticky;
   top: calc(var(--app-header-h) + 24px);
+  max-height: calc(100vh - var(--app-header-h) - 48px);
+  max-height: calc(100dvh - var(--app-header-h) - 48px);
   display: flex;
   flex-direction: column;
   gap: 28px;

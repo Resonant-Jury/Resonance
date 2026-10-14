@@ -82,9 +82,14 @@ struct CardBoxScreen: View {
                     Text(me.bio ?? L10n.Me.bioEmpty).font(AppFonts.body(14)).foregroundStyle(Tokens.textMuted)
                 }
                 Spacer(minLength: 0)
-                // The settings entry: the person glyph, bare — a glyph beside the name, not a chip. Not the pen,
-                // which means "write" (on a tablet it sits beside the header's own).
-                OrganicIconButton(.user, label: L10n.Me.editProfile, size: 20) { openRoute(.settings) }
+                // The settings entry. A phone: the person glyph, bare — a glyph beside the name, not a chip; not the
+                // pen, which means "write". A tablet has the room to say what it is, as the web's wide page does:
+                // the labelled tonal button.
+                if phone {
+                    OrganicIconButton(.user, label: L10n.Me.editProfile, size: 20) { openRoute(.settings) }
+                } else {
+                    OrganicButton(L10n.Me.editProfile, icon: .user, variant: .tonal, size: .sm) { openRoute(.settings) }
+                }
             }
         } else if case .failed = session.profile {
             OrganicEmptyState(message: L10n.Native.loadError, actionTitle: L10n.Native.retry, actionStyle: .outline) {

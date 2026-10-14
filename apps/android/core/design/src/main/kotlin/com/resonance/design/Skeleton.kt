@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -50,30 +51,40 @@ private val Ease = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
  */
 @Composable
 fun Skeleton(modifier: Modifier = Modifier, height: Dp = 14.dp, radius: Dp = 7.dp, circle: Boolean = false) {
+    val sized = if (circle) modifier.size(height) else modifier.fillMaxWidth().height(height)
+    Box(sized.clip(if (circle) CircleShape else RoundedCornerShape(radius)).shimmer())
+}
+
+/**
+ * A picture's place while it is on its way (OrganicImage): the shimmer over the whole box, its shape the
+ * frame's own clip — so a cover reads as loading, not as the striped "no picture" placeholder.
+ */
+@Composable
+fun SkeletonCover() {
+    Box(Modifier.fillMaxSize().shimmer())
+}
+
+@Composable
+private fun Modifier.shimmer(): Modifier {
     val highlight = LocalSkeletonHighlight.current
     val context = LocalContext.current
     val still = remember(context) { context.prefersReducedMotion() }
     val t = if (still) null else rememberInfiniteTransition(label = "skeleton").animateFloat(
         0f, 1f, infiniteRepeatable(tween(1500, easing = Ease)), label = "shimmer",
     )
-    val sized = if (circle) modifier.size(height) else modifier.fillMaxWidth().height(height)
-    Box(
-        sized
-            .clip(if (circle) CircleShape else RoundedCornerShape(radius))
-            .clearAndSetSemantics { }
-            .drawBehind {
-                val p = t?.value ?: return@drawBehind drawRect(Mixes.SkeletonBase)
-                val w = size.width
-                // background-position 100% → −100% moves the 4w-wide band's left edge from −3w to 3w.
-                val left = -3f * w * (1f - 2f * p)
-                drawRect(
-                    Brush.horizontalGradient(
-                        0.25f to Mixes.SkeletonBase, 0.37f to highlight, 0.63f to Mixes.SkeletonBase,
-                        startX = left, endX = left + 4f * w,
-                    ),
-                )
-            },
-    )
+    return clearAndSetSemantics { }
+        .drawBehind {
+            val p = t?.value ?: return@drawBehind drawRect(Mixes.SkeletonBase)
+            val w = size.width
+            // background-position 100% → −100% moves the 4w-wide band's left edge from −3w to 3w.
+            val left = -3f * w * (1f - 2f * p)
+            drawRect(
+                Brush.horizontalGradient(
+                    0.25f to Mixes.SkeletonBase, 0.37f to highlight, 0.63f to Mixes.SkeletonBase,
+                    startX = left, endX = left + 4f * w,
+                ),
+            )
+        }
 }
 
 /** Six (or `count`) StoryCards in their loading dress, as the web's FeedSkeleton. */

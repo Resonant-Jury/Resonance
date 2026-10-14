@@ -25,6 +25,7 @@ import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { usePathname, useRouter } from '@/i18n/navigation';
 import type { Locale } from '@/lib/db/types';
 import { useOpenedOnce } from '@/lib/hooks/useOpenedOnce';
+import styles from './SettingsClient.module.css';
 
 // The block list loads when first opened, not with the settings page.
 const BlockedListModal = dynamic(() =>
@@ -429,7 +430,9 @@ export function SettingsClient({ initial }: SettingsClientProps) {
     if (mobileView === 'menu') {
       return (
         <div>
-          <h1 style={{ ...titleStyle, marginBottom: 18 }}>{t('title')}</h1>
+          {/* On a phone the header's brand slot says 設定 (AppHeader), so the menu starts with its
+              first row; the heading stays for screen readers. */}
+          <h1 className={styles.menuTitle} style={{ ...titleStyle, marginBottom: 18 }}>{t('title')}</h1>
           <div>
             {SECTIONS.map((s, i) => {
               const danger = s === 'delete';

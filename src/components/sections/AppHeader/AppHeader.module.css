@@ -108,11 +108,21 @@
 .phoneOnly {
   display: none;
 }
+/* The brand slot's words where a page names itself there on a phone only (Settings). */
+.brandPhone {
+  display: none;
+}
 @media (max-width: 720px) {
   .phoneOnly {
     display: flex;
   }
   .wideOnly {
+    display: none;
+  }
+  .brandPhone {
+    display: inline;
+  }
+  .brandWide {
     display: none;
   }
 }

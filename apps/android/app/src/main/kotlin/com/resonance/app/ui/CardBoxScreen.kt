@@ -61,6 +61,8 @@ import com.resonance.design.OklchColor
 import com.resonance.design.OrganicEmptyState
 import com.resonance.design.EmptyAction
 import com.resonance.design.OrganicIconButton
+import com.resonance.design.OrganicButton
+import com.resonance.design.ButtonVariant
 import com.resonance.design.Skeleton
 import com.resonance.design.plainClickable
 import com.resonance.design.cardListLayout
@@ -250,8 +252,14 @@ fun CardBoxScreen(session: Session, open: (Route) -> Unit) {
                         BasicText(p.me.handle, style = AppFonts.heading(24f))
                         BasicText(p.me.bio ?: L10n.Me.bioEmpty, style = AppFonts.body(14f, color = Tokens.TextMuted))
                     }
-                    // The identity row ends on the person glyph alone (the pen means write): a bare glyph, no frame of its own.
-                    OrganicIconButton(IconName.User, L10n.Me.editProfile, size = 20.dp) { open(Route.Settings) }
+                    // The identity row ends on the way to the profile settings. A phone: the person glyph alone (the pen
+                    // means write), bare. A tablet has the room to say what it is, as the web's wide page does: the
+                    // labelled tonal button.
+                    if (LocalWindowLayout.current.cls == LayoutClass.Compact) {
+                        OrganicIconButton(IconName.User, L10n.Me.editProfile, size = 20.dp) { open(Route.Settings) }
+                    } else {
+                        OrganicButton(L10n.Me.editProfile, variant = ButtonVariant.Tonal, icon = IconName.User, small = true) { open(Route.Settings) }
+                    }
                 }
                 Session.Profile.Missing -> OrganicEmptyState(L10n.Auth.stepHandle)
                 Session.Profile.Failed -> OrganicEmptyState(L10n.Native.loadError, L10n.Native.retry, { scope.launch { session.loadMe() } }, action = EmptyAction.Outline)
