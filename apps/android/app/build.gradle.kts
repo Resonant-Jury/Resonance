@@ -17,8 +17,8 @@ android {
         applicationId = "com.resonance.stories"
         minSdk = 29 // Typeface.CustomFallbackBuilder (the web's per-glyph font stack)
         targetSdk = 36
-        versionCode = 10
-        versionName = "2.1.1"
+        versionCode = 11
+        versionName = "2.1.2"
     }
 
     buildFeatures {
