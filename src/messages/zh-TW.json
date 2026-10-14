@@ -468,7 +468,7 @@
     "mediaLabel": "搭配一張圖片（選填）",
     "mediaRemove": "移除圖片",
     "mediaPlaceholder": "加一張圖片",
-    "mediaHint": "常見的圖片格式都可以，上傳時會自動壓縮",
+    "mediaHint": "常見的圖片格式都可以",
     "mediaUploadError": "圖片上傳失敗，請稍後再試",
     "mediaUnsupported": "讀不出這張圖片，請換成 JPG 或 PNG",
     "mediaUploading": "正在描繪中⋯",

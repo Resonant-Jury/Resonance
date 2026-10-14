@@ -60,15 +60,15 @@
 }
 
 .scroller[data-more-below] {
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
 }
 
 .scroller[data-more-above] {
-  mask-image: linear-gradient(to top, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to top, #000 calc(100% - 16px), transparent);
 }
 
 .scroller[data-more-above][data-more-below] {
-  mask-image: linear-gradient(to bottom, transparent, #000 36px, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 16px, #000 calc(100% - 16px), transparent);
 }
 
 .list {
@@ -96,6 +96,7 @@
   transition: color 140ms;
 }
 
-.link:hover {
+.link:hover,
+.link[data-active] {
   color: var(--color-terracotta);
 }

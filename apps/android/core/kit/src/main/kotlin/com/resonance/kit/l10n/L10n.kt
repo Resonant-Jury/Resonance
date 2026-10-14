@@ -836,7 +836,7 @@ object L10n {
         val mediaRemove: String get() = Strings.string("write.mediaRemove")
         /** Add an image */
         val mediaPlaceholder: String get() = Strings.string("write.mediaPlaceholder")
-        /** Any common image format · resized for you on upload */
+        /** Any common image format */
         val mediaHint: String get() = Strings.string("write.mediaHint")
         /** Couldn’t upload the image — please try again */
         val mediaUploadError: String get() = Strings.string("write.mediaUploadError")

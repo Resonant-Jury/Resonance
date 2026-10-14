@@ -20,6 +20,37 @@ const RAIL_W = AMP * 2 + SW + 2;
 const PAGE = 0.9;
 /** A wheel line, in px, for wheels that count in lines. */
 const LINE = 40;
+/** The reading line, this far under the header: the last heading above it is the one being read. */
+const READING_LINE = 96;
+/** Where the heading being read sits in the list, as a share of what shows (clear of the edge fades). */
+const ACTIVE_AT = 1 / 3;
+/** How long a tapped heading stays marked while the page travels to it (the headings passed don't flash). */
+const TAP_HOLD_MS = 1200;
+
+/** The header's height (--app-header-h), the reading line's base. */
+function headerHeight(): number {
+  const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-header-h'));
+  return Number.isFinite(v) ? v : 82;
+}
+
+/**
+ * The heading being read: the last whose top has passed the reading line —
+ * or, the page scrolled to its end, the last one on screen (the closing
+ * sections can't reach the line). None before the first heading passes it.
+ */
+export function headingBeingRead(
+  tops: { id: string; top: number }[],
+  line: number,
+  atEnd: boolean,
+  viewportH: number,
+): string | null {
+  let read: string | null = null;
+  for (const h of tops) {
+    if (h.top <= line || (atEnd && h.top < viewportH)) read = h.id;
+    else break;
+  }
+  return read;
+}
 
 const NONE: ScrollMetrics = { scrollTop: 0, scrollHeight: 0, clientHeight: 0 };
 
@@ -40,6 +71,13 @@ const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffec
  * the rule as the list scrolls. It can be dragged, and a click on the rule
  * above or below it moves the list a page; the drawn rule is aria-hidden —
  * keyboard and screen readers have the list itself.
+ *
+ * It follows the reading: the heading being read (headingBeingRead) is in
+ * terracotta (aria-current), and the list brings it a third of the way down
+ * what shows — clear of the edge fades — so the stretch on the rule moves
+ * with the reader. A tapped heading is marked at once and stays so while the
+ * page travels to it. The apps' tablet ToCs do the same (CardToc.swift,
+ * StoryToc.kt).
  */
 export function CardToc({ headings, title }: { headings: TocHeading[]; title: string }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -49,6 +87,9 @@ export function CardToc({ headings, title }: { headings: TocHeading[]; title: st
   const drag = useRef<{ grab: number } | null>(null);
   const [metrics, setMetrics] = useState<ScrollMetrics>(NONE);
   const [dragging, setDragging] = useState(false);
+  // The heading being read (reading progress), marked in the list.
+  const [active, setActive] = useState<string | null>(null);
+  const tapHold = useRef<{ id: string; until: number } | null>(null);
 
   const measure = useCallback(() => {
     frame.current = null;
@@ -96,6 +137,54 @@ export function CardToc({ headings, title }: { headings: TocHeading[]; title: st
     return () => rail.removeEventListener('wheel', onWheel);
   }, [headings.length]);
 
+  // Reading progress: which heading the page is at, once a frame at most while it scrolls.
+  useEffect(() => {
+    if (headings.length === 0) return;
+    let frame: number | null = null;
+    const read = () => {
+      frame = null;
+      const hold = tapHold.current;
+      if (hold && performance.now() < hold.until) return setActive(hold.id);
+      tapHold.current = null;
+      const tops: { id: string; top: number }[] = [];
+      for (const h of headings) {
+        const el = document.getElementById(h.id);
+        if (el) tops.push({ id: h.id, top: el.getBoundingClientRect().top });
+      }
+      const doc = document.documentElement;
+      const atEnd = window.scrollY + window.innerHeight >= doc.scrollHeight - 2;
+      setActive(headingBeingRead(tops, headerHeight() + READING_LINE, atEnd, window.innerHeight));
+    };
+    const schedule = () => {
+      if (frame == null) frame = requestAnimationFrame(read);
+    };
+    read();
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    return () => {
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      if (frame != null) cancelAnimationFrame(frame);
+    };
+  }, [headings]);
+
+  // The list follows: the heading being read is brought a third of the way down what shows
+  // (clamped to the list's ends), and the rule's terracotta stretch with it — never under a drag.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !active || drag.current) return;
+    const row = el.querySelector<HTMLElement>(`[data-heading="${CSS.escape(active)}"]`);
+    if (!row) return;
+    const rowTop = row.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
+    const max = el.scrollHeight - el.clientHeight;
+    if (max <= 0) return;
+    const top = Math.min(max, Math.max(0, rowTop - el.clientHeight * ACTIVE_AT));
+    if (Math.abs(top - el.scrollTop) < 2) return;
+    const still = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (typeof el.scrollTo === 'function') el.scrollTo({ top, behavior: still ? 'instant' : 'smooth' });
+    else el.scrollTop = top;
+  }, [active]);
+
   const trackH = metrics.clientHeight;
   const thumb = thumbGeometry(metrics, trackH);
   const above = thumb != null && metrics.scrollTop > 1;
@@ -136,7 +225,11 @@ export function CardToc({ headings, title }: { headings: TocHeading[]; title: st
 
   function scrollTo(id: string) {
     const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!el) return;
+    // Marked at once, and kept while the page travels there.
+    tapHold.current = { id, until: performance.now() + TAP_HOLD_MS };
+    setActive(id);
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function onPointerDown(e: PointerEvent<HTMLDivElement>) {
@@ -224,7 +317,14 @@ export function CardToc({ headings, title }: { headings: TocHeading[]; title: st
           <ul className={styles.list} ref={listRef}>
             {headings.map((h) => (
               <li key={h.id} data-level={h.level}>
-                <button type="button" className={styles.link} onClick={() => scrollTo(h.id)}>
+                <button
+                  type="button"
+                  className={styles.link}
+                  data-heading={h.id}
+                  data-active={h.id === active || undefined}
+                  aria-current={h.id === active ? 'location' : undefined}
+                  onClick={() => scrollTo(h.id)}
+                >
                   {h.text}
                 </button>
               </li>

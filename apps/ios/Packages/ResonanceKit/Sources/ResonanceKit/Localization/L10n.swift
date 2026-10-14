@@ -834,7 +834,7 @@ public enum L10n {
         public static var mediaRemove: String { Strings.shared.string("write.mediaRemove") }
         /// Add an image
         public static var mediaPlaceholder: String { Strings.shared.string("write.mediaPlaceholder") }
-        /// Any common image format · resized for you on upload
+        /// Any common image format
         public static var mediaHint: String { Strings.shared.string("write.mediaHint") }
         /// Couldn’t upload the image — please try again
         public static var mediaUploadError: String { Strings.shared.string("write.mediaUploadError") }

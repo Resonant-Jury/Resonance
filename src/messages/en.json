@@ -468,7 +468,7 @@
     "mediaLabel": "Image (optional)",
     "mediaRemove": "Remove image",
     "mediaPlaceholder": "Add an image",
-    "mediaHint": "Any common image format · resized for you on upload",
+    "mediaHint": "Any common image format",
     "mediaUploadError": "Couldn’t upload the image — please try again",
     "mediaUnsupported": "Couldn’t read this image — try a JPG or PNG",
     "mediaUploading": "Sketching it in…",
