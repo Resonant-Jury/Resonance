@@ -1,7 +1,8 @@
 import type { IconRenderProps } from '../types';
 
-// A hand-drawn waste bin — slightly tapered body, loose lid with a small
-// handle, and two inner strokes suggesting the slats.
+// A hand-drawn waste bin — a lid laid on a little askew, its handle a loose
+// loop, a body whose sides lean in unevenly to a rounded foot, and two slats
+// that don't quite keep parallel.
 export function TrashIcon({ size = 22, strokeWidth = 1.5, color = 'currentColor' }: IconRenderProps) {
   return (
     <svg
@@ -16,15 +17,15 @@ export function TrashIcon({ size = 22, strokeWidth = 1.5, color = 'currentColor'
       aria-hidden="true"
       style={{ display: 'block', flexShrink: 0 }}
     >
-      {/* lid */}
-      <path d="M4.6,7.0 C9.4,6.4 14.8,6.4 19.4,7.1" />
+      {/* lid, laid on a little askew */}
+      <path d="M4.3,7.4 C6.5,6.6 9.1,7.0 11.5,6.6 C14.1,6.2 16.9,6.5 19.6,7.0" />
       {/* handle */}
-      <path d="M9.6,6.6 C9.5,5.3 10.1,4.5 12.0,4.5 C13.8,4.5 14.5,5.2 14.4,6.6" />
-      {/* tapered body */}
-      <path d="M6.2,7.2 C6.4,11.4 6.8,15.8 7.4,19.0 C8.1,19.8 15.8,19.9 16.6,19.1 C17.2,15.7 17.6,11.3 17.8,7.3" />
+      <path d="M9.3,6.8 C9.0,5.6 9.7,4.4 11.3,4.3 C12.7,4.2 14.1,4.4 14.6,5.5 C14.8,5.9 14.8,6.3 14.7,6.6" />
+      {/* body: the sides lean in unevenly to a rounded foot */}
+      <path d="M5.9,7.7 C6.6,10.5 6.3,13.6 6.9,16.4 C7.1,17.6 7.3,18.7 8.0,19.4 C10.5,20.1 13.6,20.0 16.1,19.4 C16.9,18.4 16.8,16.9 17.1,15.4 C17.5,12.7 17.4,10.1 18.0,7.5" />
       {/* slats */}
-      <path d="M10.2,9.8 C10.3,12.2 10.4,14.5 10.6,16.6" />
-      <path d="M13.8,9.7 C13.7,12.1 13.6,14.5 13.4,16.7" />
+      <path d="M10.0,10.2 C10.5,12.3 9.9,14.5 10.5,16.8" />
+      <path d="M14.0,10.1 C13.5,12.1 14.1,14.4 13.5,16.7" />
     </svg>
   );
 }
