@@ -611,7 +611,7 @@ fun OrganicInlineBar(
     titleShown: Boolean = true,
     /** The page's context when it isn't a title (a thread's person): the middle of a tablet's header, beside the arrow on a phone. */
     centre: (@Composable RowScope.() -> Unit)? = null,
-    /** [title] is the page's own (a card's, risen from the article): a tablet's header sets it a step larger ([TabletPageTitle]). */
+    /** [title] is the page's own (a card's, risen from the article): a tablet's header sets it a step larger and bold ([TabletPageTitle]). */
     pageTitle: Boolean = false,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
@@ -625,8 +625,10 @@ fun OrganicInlineBar(
     }
     // A phone's title beside the arrow is 20 bold; a tablet header's context, an inline title's 17
     // semibold (round 5 D5: iPadOS's inline title), one line, truncated.
-    val titleStyle = if (chrome != null) AppFonts.heading(if (pageTitle) TabletPageTitle else 17f, 600, lineHeight = 1.25f).copy(letterSpacing = (-0.01).em)
-        else phoneBarTitle()
+    val titleStyle = if (chrome != null) {
+        if (pageTitle) AppFonts.heading(TabletPageTitle, 700, lineHeight = 1.25f).copy(letterSpacing = (-0.01).em)
+        else AppFonts.heading(17f, 600, lineHeight = 1.25f).copy(letterSpacing = (-0.01).em)
+    } else phoneBarTitle()
     val titleText: @Composable (Modifier) -> Unit = { m ->
         BasicText(
             title.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -716,7 +718,9 @@ object InlineBarCentre {
 
 /**
  * A card's title in the middle of a tablet's header, once the article's own has gone up under it:
- * the context's 17 two steps up (the owner's "a little bigger"), still semibold — iPad's twin.
+ * the context's 17 two steps up (the owner's "a little bigger") and bold — Noto Serif TC's semibold
+ * read faint beside the bar's glyphs; bold is the bar titles' and the article title's own weight.
+ * iPad's twin (19 bold).
  */
 const val TabletPageTitle = 19f
 
