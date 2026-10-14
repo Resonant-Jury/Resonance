@@ -236,19 +236,22 @@ export function SettingsClient({ initial }: SettingsClientProps) {
     <section style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
         {active === 'profile' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <AvatarUpload
-              src={avatarUrl}
-              initials={initial.initials || handle.slice(0, 2).toUpperCase()}
-              accentColor={initial.accentColor}
-              seed={77}
-              onUploaded={async (url) => {
-                // Saved before the crop dialog closes, so a failure is said there;
-                // then the public profile — under the last-saved handle — is refreshed.
-                await updateProfile({ avatarUrl: url });
-                setAvatarUrl(url);
-                void requestRevalidate(profilePaths(savedProfileRef.current.handle));
-              }}
-            />
+            {/* The face gets more air than a field: 32 to the first label (fields keep 24). */}
+            <div className={styles.avatarBlock}>
+              <AvatarUpload
+                src={avatarUrl}
+                initials={initial.initials || handle.slice(0, 2).toUpperCase()}
+                accentColor={initial.accentColor}
+                seed={77}
+                onUploaded={async (url) => {
+                  // Saved before the crop dialog closes, so a failure is said there;
+                  // then the public profile — under the last-saved handle — is refreshed.
+                  await updateProfile({ avatarUrl: url });
+                  setAvatarUrl(url);
+                  void requestRevalidate(profilePaths(savedProfileRef.current.handle));
+                }}
+              />
+            </div>
             <Field
               label={t('profile.handle')}
               hint={handleTaken ? tAuth('handleTaken') : undefined}

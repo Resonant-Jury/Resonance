@@ -45,7 +45,9 @@
 .scroller {
   flex: 1;
   min-width: 0;
-  max-height: 100%;
+  /* A long contents stays a sidebar, not a second page: about a dozen rows
+     show, the rest scroll (the rail's room caps it further on a short window). */
+  max-height: min(360px, 50vh);
   min-height: 0;
   align-self: stretch;
   overflow-y: auto;

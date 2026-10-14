@@ -30,3 +30,16 @@
     border: 0;
   }
 }
+
+/* The profile's photo: 8 more below it than a field's 24 (32 to the first
+   label); on a phone 8 more above too, so it sits 26 under the bar rather than
+   pressed to the menu's 18. The apps' profile screens keep the same rhythm. */
+.avatarBlock {
+  margin-bottom: 8px;
+}
+
+@media (max-width: 720px) {
+  .avatarBlock {
+    margin-top: 8px;
+  }
+}
