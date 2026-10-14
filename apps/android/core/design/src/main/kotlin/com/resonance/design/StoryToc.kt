@@ -1,5 +1,8 @@
 package com.resonance.design
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.runtime.LaunchedEffect
@@ -169,8 +172,9 @@ data class ScrollThumb(val h: Float, val top: Float, val max: Float) {
  * seed 9, the fields' border ink) stays put, as tall as the list shows, and a terracotta stretch of
  * it (INK_STRONG, round ends, its length along the curve) stands for the part in view, sized and
  * placed by [ScrollThumb] — dragged, it scrolls the list; a tap on the rule above or below it moves
- * the list a page. The side the list can still move toward fades out over [TocFade]. A list with
- * room to spare is still: a drag over it is the page's.
+ * the list a page. At most min([TocMaxHeight], half the window) of the list shows. The side the list
+ * can still move toward fades out over [TocFade]. A list with room to spare is still: a drag over it
+ * is the page's.
  */
 @Composable
 fun StoryToc(
@@ -201,7 +205,11 @@ fun StoryToc(
             style = AppFonts.body(12f, 600, lineHeight = 1.3f, color = Tokens.TextMuted).copy(letterSpacing = 0.08.em),
             modifier = Modifier.semantics { heading() },
         )
-        TocRule(scroll, toc, Modifier.weight(1f, fill = false)) {
+        // A long contents stays a sidebar, not a second page: at most min(360, half the window)
+        // shows (about a dozen rows), the rest scrolls; the rail's own room caps it further.
+        val window = LocalWindowInfo.current.containerSize.height
+        val cap = with(LocalDensity.current) { minOf(TocMaxHeight, (window / 2).toDp()) }
+        TocRule(scroll, toc, Modifier.weight(1f, fill = false).heightIn(max = cap)) {
             headings.forEachIndexed { i, h ->
                 TocLink(h, h === active, Modifier.onPlaced { toc.rowTops[i] = it.positionInParent().y }, onSelect)
             }
@@ -229,6 +237,9 @@ internal class TocLayout(rows: Int) {
         }
     }
 }
+
+/** The most of a long list that shows at once (CardToc's `max-height: min(360px, 50vh)`). */
+private val TocMaxHeight = 360.dp
 
 /** The list following the heading being read. */
 private const val TOC_FOLLOW_MILLIS = 250

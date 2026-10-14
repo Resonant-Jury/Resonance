@@ -99,12 +99,19 @@ fun rememberPenNameAvailability(session: Session, name: String, own: String? = n
 /**
  * The pen-name field and, 6 under it, its standing: checking (muted), the
  * web's checkmark and "Available ✿" (sage), taken (terracotta), or — when
- * the check itself failed — the load error with a retry.
+ * the check itself failed — the load error with a retry. With [reserveStatus]
+ * the line keeps its room whatever it says (onboarding: the fields below never
+ * jump); without, it takes room only while there is a standing to tell
+ * (Settings, where your own name says nothing and the form keeps its rhythm).
  */
 @Composable
-fun PenNameField(label: String, value: String, onValueChange: (String) -> Unit, availability: Availability, onRetry: () -> Unit, seed: Double = 31.0) {
+fun PenNameField(
+    label: String, value: String, onValueChange: (String) -> Unit, availability: Availability, onRetry: () -> Unit,
+    seed: Double = 31.0, reserveStatus: Boolean = true,
+) {
     Column {
         OrganicTextField(label, value, { onValueChange(PenName.sanitize(it)) }, seed = seed)
+        if (!reserveStatus && (availability == Availability.Idle || availability == Availability.Own)) return@Column
         Row(
             // The line keeps its room, so the fields below don't jump as it comes and goes.
             Modifier.padding(top = 6.dp).heightIn(min = 18.dp),

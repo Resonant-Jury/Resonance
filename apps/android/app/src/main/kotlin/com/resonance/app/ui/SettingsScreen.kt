@@ -39,7 +39,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.resonance.api.models.NotificationSettings
@@ -62,6 +61,7 @@ import com.resonance.design.OrganicConfirmDialog
 import com.resonance.design.OrganicEmptyState
 import com.resonance.design.OrganicIcon
 import com.resonance.design.OrganicInlineBar
+import com.resonance.design.FieldLabel
 import com.resonance.design.inlineBarTop
 import com.resonance.design.LocalWindowLayout
 import com.resonance.design.OrganicLink
@@ -233,10 +233,14 @@ private fun ProfileSettings(session: Session) {
     val nameOk = handleChange == null || availability.value == Availability.Available
     val canSave = (handleChange != null || bioChange != null || regionChange != null) && nameOk && !saving
 
+    // The web's rhythm: the face 8 lower than the section's first line (24 under the bar) and 32 above
+    // the first label; a field's foot to the next label 24, a label to its field 10, Save 24 after.
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        AvatarSettingsRow(session, me)
-        PenNameField(L10n.Settings.Profile.handle, handle, { handle = it; saved = false; failed = false }, availability.value, onRetry = { retry++ })
-        OrganicTextField(L10n.Settings.Profile.bio, bio, { bio = it; saved = false; failed = false }, seed = 37.0, maxLength = BIO_MAX)
+        Box(Modifier.padding(top = 8.dp, bottom = 8.dp)) { AvatarSettingsRow(session, me) }
+        // Its standing takes room only while it has something to say (a new name being checked).
+        PenNameField(L10n.Settings.Profile.handle, handle, { handle = it; saved = false; failed = false }, availability.value, onRetry = { retry++ }, reserveStatus = false)
+        // Cut at 80 as it is typed, with no counter under it (the web's and iOS's): the gap to the region is a field's.
+        OrganicTextField(L10n.Settings.Profile.bio, bio, { bio = it.take(BIO_MAX); saved = false; failed = false }, seed = 37.0)
         ChoiceList(L10n.Settings.Profile.region, Regions.settings(me.region), region, seed = 43.0, flag = { it }) { region = it; saved = false; failed = false }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OrganicButton(
@@ -451,10 +455,8 @@ private fun NotificationSettings(session: Session) {
 @Composable
 private fun LanguageSettings(session: Session) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        BasicText(
-            L10n.Settings.Language.ui.uppercase(),
-            style = AppFonts.body(Tokens.LabelSize, 600, color = Tokens.TextMuted).copy(letterSpacing = 0.06.em),
-        )
+        // The fields' own label (its 1.3 line), as Profile's region list has.
+        FieldLabel(L10n.Settings.Language.ui)
         Column {
             LanguageRow(session, Strings.Language.ZhTW, "繁體中文", "tw", 71.0)
             WavyDivider(seed = 67.0, modifier = Modifier.padding(vertical = 2.dp))
