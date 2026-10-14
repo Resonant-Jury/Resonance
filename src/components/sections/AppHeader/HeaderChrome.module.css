@@ -51,8 +51,8 @@
   }
 }
 
-/* Phones: fully opaque, no blur. The PWA paints the status-bar strip in the
-   solid theme color, and a translucent blurred header directly beneath it
+/* Phones: fully opaque, no blur. The browser paints its bar in the solid
+   theme color, and a translucent blurred header directly beneath it
    reads as two mismatched bands — so the mobile header is plain cream. */
 @media (max-width: 720px) {
   .bg {

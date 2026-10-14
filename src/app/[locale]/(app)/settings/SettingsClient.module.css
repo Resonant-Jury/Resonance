@@ -1,3 +1,19 @@
+/* The page's column. Wide, it keeps a content page's room above its heading
+   (as the card box does); on a phone (AppHeader's 720px) the bar is the title,
+   so the menu and each section start under it as Messages' list does — 18px
+   below the line (MessagesPage.module.css `.listPane`). */
+.page {
+  max-width: var(--page-max-w);
+  margin: 0 auto;
+  padding: calc(var(--app-header-h) + var(--page-pad-top)) var(--page-pad-x) var(--page-pad-bottom);
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding-top: calc(var(--app-header-h) + 18px);
+  }
+}
+
 /* The phone menu's heading. At the header's phone width (AppHeader, 720px) the
    bar's brand slot says 設定, so the heading steps out of sight — kept for
    screen readers — and the menu starts with its first row. */

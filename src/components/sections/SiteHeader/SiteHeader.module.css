@@ -20,7 +20,7 @@
   mask-repeat: no-repeat;
 }
 
-/* Phones: solid cream once scrolled in (same PWA status-bar reasoning as
+/* Phones: solid cream once scrolled in (same themed-bar reasoning as
    AppHeader — a blurred translucent band under the themed status bar reads
    as two mismatched colors). At rest it stays opacity 0 over the cream page. */
 @media (max-width: 720px) {

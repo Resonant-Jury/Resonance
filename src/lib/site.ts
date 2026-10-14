@@ -1,6 +1,6 @@
 /**
  * The canonical origin of the deployment, used to build absolute URLs for
- * Open Graph / Twitter cards and the PWA manifest.
+ * Open Graph / Twitter cards, the sitemap and links sent out.
  *
  * Resolution order:
  *  1. `NEXT_PUBLIC_SITE_URL` — set this to the production domain (e.g. a custom

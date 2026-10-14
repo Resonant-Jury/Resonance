@@ -69,8 +69,8 @@ export function HeaderChrome({ scrolled, splitPen = false }: { scrolled: boolean
       <div
         aria-hidden="true"
         className={styles.bg}
-        // Phones keep the header fully opaque (the module CSS: the PWA wants
-        // a solid band there); wider, it firms up once the page scrolls.
+        // Phones keep the header fully opaque (the module CSS: under the browser's
+        // themed bar it wants a solid band); wider, it firms up once the page scrolls.
         data-scrolled={scrolled || undefined}
         data-split-pen={splitPen || undefined}
         style={{

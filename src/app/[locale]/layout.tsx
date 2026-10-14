@@ -15,7 +15,7 @@ export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
 
-// Matches the manifest theme_color / brand cream surface.
+// The brand cream surface: what a phone browser tints its bars with.
 export const viewport: Viewport = {
   themeColor: '#faf2e9',
 };
@@ -36,11 +36,8 @@ export async function generateMetadata({
     title,
     description,
     applicationName: 'Resonance',
-    appleWebApp: {
-      capable: true,
-      title: 'Resonance',
-      statusBarStyle: 'default',
-    },
+    // No web-app manifest and no Apple standalone mode: the site isn't offered as an
+    // installable app — the iOS and Android apps are (GetTheApp, the Smart App Banner).
     icons: {
       icon: [
         { url: '/icon.svg', type: 'image/svg+xml' },

@@ -117,7 +117,7 @@ export function reportOnlyPolicy(env: SecurityEnv): string {
       preview && 'https://vercel.live',
     ],
     'worker-src': ["'self'", 'blob:'],
-    'manifest-src': ["'self'"],
+    'manifest-src': ["'none'"],
     'object-src': ["'none'"],
     'base-uri': ["'self'"],
     'form-action': ["'self'"],

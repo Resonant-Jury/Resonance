@@ -15,37 +15,60 @@
   color: var(--color-text-muted);
 }
 
-/* Flex row: the wavy rule rail on the left, list to its right. It is the
-   scroller when the headings outgrow the rail: the wheel over it moves the
-   list and stops at its ends (never handing on to the page), and the side it
-   can still move toward fades out. */
+/* Flex row: the wavy rule on the left, the list to its right. The rule stays
+   put, as tall as the list shows; the list beside it is the scroller. */
 .listWrap {
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
   min-height: 0;
+}
+
+/* The rule's column: the measured wavy SVG, the height of what shows. While the
+   list scrolls it is the list's bar (CardToc): a press or drag on it moves the
+   list, so a touch on it moves no page. */
+.rail {
+  flex-shrink: 0;
+}
+
+.rail[data-scrolls] {
+  cursor: pointer;
+  touch-action: none;
+}
+
+.rail[data-dragging] {
+  cursor: grabbing;
+}
+
+/* The scroller: no bar of its own (the rule is the bar). The wheel over it
+   moves the list and stops at its ends (never handing on to the page), and the
+   side it can still move toward fades out. */
+.scroller {
+  flex: 1;
+  min-width: 0;
+  max-height: 100%;
+  min-height: 0;
+  align-self: stretch;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--color-text-muted) 35%, transparent) transparent;
+  scrollbar-width: none;
   /* Room for a heading's focus ring, which the scroller would clip. */
   padding: 2px 4px 2px 0;
 }
 
-.listWrap[data-more-below] {
+.scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.scroller[data-more-below] {
   mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
 }
 
-.listWrap[data-more-above] {
+.scroller[data-more-above] {
   mask-image: linear-gradient(to top, #000 calc(100% - 36px), transparent);
 }
 
-.listWrap[data-more-above][data-more-below] {
+.scroller[data-more-above][data-more-below] {
   mask-image: linear-gradient(to bottom, transparent, #000 36px, #000 calc(100% - 36px), transparent);
-}
-
-/* Fixed-width column holding the measured wavy SVG (stretches to list height). */
-.rail {
-  flex-shrink: 0;
 }
 
 .list {
