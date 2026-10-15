@@ -4,7 +4,7 @@ import { useRef } from 'react';
 import { act } from '@testing-library/react';
 import { fireEvent, renderWithIntl, screen } from '@/../test/render';
 import { SB, brushSpine } from '@/lib/design/scrollbarGeometry';
-import { OrganicScrollbar, organicScrollTarget } from './OrganicScrollbar';
+import { LINGER, OrganicScrollbar, organicScrollTarget } from './OrganicScrollbar';
 
 // jsdom lays nothing out: the list, the track and the thumb get a browser's numbers here.
 const RAIL_TOP = 100;
@@ -104,7 +104,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function Harness() {
+function Harness({ autoHide }: { autoHide?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   return (
     <div style={{ position: 'relative' }}>
@@ -114,13 +114,13 @@ function Harness() {
           <li>two</li>
         </ul>
       </div>
-      <OrganicScrollbar targetRef={ref} seed={31} />
+      <OrganicScrollbar targetRef={ref} seed={31} autoHide={autoHide} />
     </div>
   );
 }
 
-function mount() {
-  const { container } = renderWithIntl(<Harness />);
+function mount({ autoHide = false } = {}) {
+  const { container } = renderWithIntl(<Harness autoHide={autoHide} />);
   flush();
   const rail = container.querySelector<HTMLElement>('[class*="rail"]')!;
   const thumb = () => rail.querySelector<HTMLElement>('[class*="thumb"]');
@@ -280,6 +280,78 @@ describe('OrganicScrollbar', () => {
     flush();
     expect(observed()).toContain(section);
     expect(thumb()!.style.height).toBe(`${SB.min}px`);
+  });
+
+  describe('autoHide', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+    const wait = (ms: number) => act(() => vi.advanceTimersByTime(ms));
+
+    it('stands always without it', () => {
+      const { rail, el } = mount();
+      expect(rail).not.toHaveAttribute('data-auto-hide');
+      scrollTo(el, 100);
+      expect(rail).not.toHaveAttribute('data-awake');
+    });
+
+    it('shows nothing at rest, wakes as the list scrolls and goes a moment after the last scroll', () => {
+      const { rail, el } = mount({ autoHide: true });
+      expect(rail).toHaveAttribute('data-auto-hide');
+      expect(rail).not.toHaveAttribute('data-awake');
+      scrollTo(el, 100);
+      expect(rail).toHaveAttribute('data-awake');
+      wait(LINGER - 100);
+      // Still scrolling: the moment starts again.
+      scrollTo(el, 200);
+      wait(LINGER - 100);
+      expect(rail).toHaveAttribute('data-awake');
+      wait(100);
+      expect(rail).not.toHaveAttribute('data-awake');
+    });
+
+    it('stays while the pointer is over the list or its column, and goes a moment after it leaves both', () => {
+      const { rail, el } = mount({ autoHide: true });
+      fireEvent.pointerEnter(el);
+      expect(rail).toHaveAttribute('data-awake');
+      scrollTo(el, 100);
+      wait(LINGER * 5);
+      expect(rail).toHaveAttribute('data-awake');
+      // From the list onto its column (a sibling floating over the list's gutter).
+      fireEvent.pointerLeave(el);
+      fireEvent.pointerEnter(rail);
+      wait(LINGER * 5);
+      expect(rail).toHaveAttribute('data-awake');
+      fireEvent.pointerLeave(rail);
+      wait(LINGER - 1);
+      expect(rail).toHaveAttribute('data-awake');
+      wait(1);
+      expect(rail).not.toHaveAttribute('data-awake');
+    });
+
+    it('stays through a drag that leaves the column, then lingers from the release', () => {
+      const { rail, thumb } = mount({ autoHide: true });
+      fireEvent.pointerEnter(rail);
+      const top = RAIL_TOP + thumbTop(thumb()!);
+      fireEvent.pointerDown(rail, { clientY: top + 20, button: 0, buttons: 1, pointerId: 1, pointerType: 'mouse' });
+      fireEvent.pointerLeave(rail);
+      fireEvent.pointerMove(rail, { clientY: top + 60, buttons: 1, pointerId: 1, pointerType: 'mouse' });
+      expect(list.scrollTop).toBeGreaterThan(0);
+      wait(LINGER * 5);
+      expect(rail).toHaveAttribute('data-awake');
+      expect(rail).toHaveAttribute('data-dragging');
+      act(() => {
+        window.dispatchEvent(new Event('pointerup'));
+      });
+      expect(rail).not.toHaveAttribute('data-dragging');
+      wait(LINGER - 1);
+      expect(rail).toHaveAttribute('data-awake');
+      wait(1);
+      expect(rail).not.toHaveAttribute('data-awake');
+    });
   });
 
   it('hides the list’s own bar through the class it gives the list', () => {

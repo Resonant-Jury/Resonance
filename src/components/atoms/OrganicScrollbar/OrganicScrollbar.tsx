@@ -10,6 +10,8 @@ const PAGE = 0.9;
 const LINE = 16;
 /** How far the column stands in from its list's top and bottom, in px. */
 const INSET = 4;
+/** With autoHide: how long the bar stays once the list stops scrolling or the pointer leaves it, in ms. */
+export const LINGER = 900;
 
 /**
  * The class a scroller wearing this bar takes (beside its own): its native
@@ -22,6 +24,12 @@ export interface OrganicScrollbarProps {
   /** The overflow container it scrolls (which also takes {@link organicScrollTarget}). */
   targetRef: RefObject<HTMLElement | null>;
   seed?: number;
+  /**
+   * Hidden at rest: the bar fades in while the pointer is over the list or its column, while the list
+   * scrolls and through a drag, and out {@link LINGER} after the last of them. For a pane's list that
+   * runs the window's height, where a bar standing there all the time reads as a second rule.
+   */
+  autoHide?: boolean;
 }
 
 const prefersReducedMotion = () =>
@@ -47,8 +55,9 @@ const prefersReducedMotion = () =>
  * list, screen readers): the drawn bar is aria-hidden. Phones and touch
  * screens show no bar (the ≤720px / coarse-pointer rule in globals.css);
  * forced colours give the system bar back (see {@link organicScrollTarget}).
+ * With `autoHide` it shows only while wanted (the 私訊 list).
  */
-export function OrganicScrollbar({ targetRef, seed = 47 }: OrganicScrollbarProps) {
+export function OrganicScrollbar({ targetRef, seed = 47, autoHide = false }: OrganicScrollbarProps) {
   const railRef = useRef<HTMLDivElement>(null);
   const thumbRef = useRef<HTMLDivElement>(null);
   // The thumb's length (0 = no bar): the only thing React draws; where it stands is written straight to its style.
@@ -56,6 +65,22 @@ export function OrganicScrollbar({ targetRef, seed = 47 }: OrganicScrollbarProps
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ grab: number } | null>(null);
   const frame = useRef<number | null>(null);
+  // autoHide: where the pointer is, and the bar's way out once nothing holds it.
+  const over = useRef({ list: false, rail: false });
+  const linger = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** autoHide: shows the bar (written on the rail, never a render) and hides it LINGER after the last call, unless the pointer or a drag still holds it. */
+  const wake = useCallback(() => {
+    const rail = railRef.current;
+    if (!autoHide || !rail) return;
+    rail.setAttribute('data-awake', '');
+    if (linger.current != null) clearTimeout(linger.current);
+    linger.current = setTimeout(() => {
+      linger.current = null;
+      if (over.current.list || over.current.rail || drag.current) return;
+      rail.removeAttribute('data-awake');
+    }, LINGER);
+  }, [autoHide]);
 
   /** The scroller's geometry on the track as it is now, or null for no bar. */
   const geometry = useCallback(() => {
@@ -111,6 +136,35 @@ export function OrganicScrollbar({ targetRef, seed = 47 }: OrganicScrollbarProps
       frame.current = null;
     };
   }, [targetRef, schedule]);
+
+  // autoHide: the list scrolling, the pointer coming or going over the list or the column.
+  useEffect(() => {
+    const el = targetRef.current;
+    const rail = railRef.current;
+    if (!autoHide || !el || !rail) return;
+    const pointer = (part: 'list' | 'rail', on: boolean) => () => {
+      over.current[part] = on;
+      wake();
+    };
+    const listIn = pointer('list', true);
+    const listOut = pointer('list', false);
+    const railIn = pointer('rail', true);
+    const railOut = pointer('rail', false);
+    el.addEventListener('scroll', wake, { passive: true });
+    el.addEventListener('pointerenter', listIn);
+    el.addEventListener('pointerleave', listOut);
+    rail.addEventListener('pointerenter', railIn);
+    rail.addEventListener('pointerleave', railOut);
+    return () => {
+      el.removeEventListener('scroll', wake);
+      el.removeEventListener('pointerenter', listIn);
+      el.removeEventListener('pointerleave', listOut);
+      rail.removeEventListener('pointerenter', railIn);
+      rail.removeEventListener('pointerleave', railOut);
+      if (linger.current != null) clearTimeout(linger.current);
+      linger.current = null;
+    };
+  }, [autoHide, targetRef, wake]);
 
   // A wheel over the column scrolls the list (React's onWheel can't stop the page behind it: it is passive).
   useEffect(() => {
@@ -170,7 +224,9 @@ export function OrganicScrollbar({ targetRef, seed = 47 }: OrganicScrollbarProps
     setDragging(false);
     const rail = railRef.current;
     if (pointerId != null && rail?.hasPointerCapture?.(pointerId)) rail.releasePointerCapture(pointerId);
-  }, []);
+    // The drag held the bar: it lingers from here, then goes unless the pointer is over the list.
+    wake();
+  }, [wake]);
 
   function endDrag(e: PointerEvent<HTMLDivElement>) {
     stopDrag(e.pointerId);
@@ -201,6 +257,7 @@ export function OrganicScrollbar({ targetRef, seed = 47 }: OrganicScrollbarProps
       style={{ top: INSET, bottom: INSET }}
       data-hidden={h > 0 ? undefined : ''}
       data-dragging={dragging || undefined}
+      data-auto-hide={autoHide || undefined}
       aria-hidden
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

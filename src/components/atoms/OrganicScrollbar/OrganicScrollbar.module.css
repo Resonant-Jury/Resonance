@@ -16,6 +16,19 @@
   display: none;
 }
 
+/* autoHide: nothing at rest; awake (the list pointed at or scrolling, written
+   by OrganicScrollbar) or dragged, it fades in quickly and out unhurried. */
+.rail[data-auto-hide] {
+  opacity: 0;
+  transition: opacity 280ms ease;
+}
+
+.rail[data-auto-hide][data-awake],
+.rail[data-auto-hide][data-dragging] {
+  opacity: 1;
+  transition-duration: 120ms;
+}
+
 /* Pointed at, the column shows where it pages: a faint straight track. */
 .track {
   position: absolute;
@@ -76,6 +89,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .rail[data-auto-hide],
   .track,
   .thumb path {
     transition: none;

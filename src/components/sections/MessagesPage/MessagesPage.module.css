@@ -22,14 +22,39 @@
   overflow: hidden;
 }
 
+/* The list and, in the gutter on its right, its drawn bar (OrganicScrollbar,
+   autoHide): nothing at rest — beside the split's rule a bar standing the
+   window's height read as a second rule — shown while the list is pointed at
+   or scrolling. The list's edges fade where more is (useEdgeFades). */
+.listCol {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .listPane {
+  flex: 1;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
-  padding: 18px 4px 16px 14px;
+  /* The right: 4px, and the bar's 14px column (--sb-hit) while there is one. */
+  padding: 18px calc(4px + var(--sb-hit)) 16px 14px;
   /* A column, so an empty state can take the pane's height. */
   display: flex;
   flex-direction: column;
+}
+
+/* Nothing to scroll, or a phone or touch screen (which never shows a bar): no gutter. */
+.listCol:has(> [data-hidden]) .listPane {
+  padding-right: 4px;
+}
+
+@media (max-width: 720px), (hover: none) and (pointer: coarse) {
+  .listPane {
+    padding-right: 4px;
+  }
 }
 
 /* Beside the two panes the detail pane says "nothing yet"; the list stays empty. */
@@ -415,7 +440,7 @@
     display: none;
   }
   /* Phone: list OR thread, never both. */
-  .page[data-thread-open] .listPane {
+  .page[data-thread-open] .listCol {
     display: none;
   }
   .page:not([data-thread-open]) .threadPane {

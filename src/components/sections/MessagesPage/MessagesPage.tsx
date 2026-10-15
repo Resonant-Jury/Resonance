@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Divider } from '@/components/atoms/Divider/Divider';
+import { OrganicScrollbar, organicScrollTarget } from '@/components/atoms/OrganicScrollbar/OrganicScrollbar';
 import { HandDrawnAvatar } from '@/components/atoms/HandDrawnAvatar/HandDrawnAvatar';
 import { HandDrawnBorder } from '@/components/atoms/HandDrawnBorder/HandDrawnBorder';
 import { seedFromString } from '@/lib/design/prng';
@@ -10,6 +11,7 @@ import { INK } from '@/lib/design/strokes';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useConversations } from '@/lib/data/hooks';
+import { useEdgeFades } from '@/lib/hooks/useEdgeFades';
 import type { Conversation, User } from '@/lib/db/types';
 import { EmptyState } from '@/components/molecules/EmptyState/EmptyState';
 import { RowWash } from './RowWash';
@@ -28,7 +30,9 @@ export interface MessagesPageProps {
  * on the left (avatar, name, last-message time), the open thread on the right,
  * split 3:7 by a hand-drawn vertical rule that runs from the header to the
  * bottom of the viewport. The page title lives in the AppHeader brand slot, so
- * the panes get the full height. Phones show one pane at a time.
+ * the panes get the full height. Phones show one pane at a time. The list's
+ * bar is drawn and shows only while wanted (pointed at, scrolling); at rest its
+ * edges fade where more is.
  */
 export function MessagesPage({ activeHandle, replyNote }: MessagesPageProps) {
   const t = useTranslations('messages');
@@ -36,6 +40,8 @@ export function MessagesPage({ activeHandle, replyNote }: MessagesPageProps) {
   const router = useRouter();
   const { user, loading } = useAuth();
   const { data } = useConversations();
+  const listRef = useRef<HTMLElement>(null);
+  const listEdges = useEdgeFades(listRef);
 
   useEffect(() => {
     if (!loading && !user) router.push('/signin');
@@ -89,33 +95,36 @@ export function MessagesPage({ activeHandle, replyNote }: MessagesPageProps) {
 
   return (
     <div className={styles.page} data-thread-open={activeHandle || undefined}>
-      <aside className={styles.listPane}>
-        {/* Nothing at all yet: said here on a phone; beside a two-pane list (which stays empty), the
-            detail pane says it. */}
-        {empty && (
-          <EmptyState
-            className={styles.listEmpty}
-            fills
-            icon="chat"
-            seed={23}
-            title={t('emptyTitle')}
-            line={t('empty')}
-          />
-        )}
+      <div className={styles.listCol}>
+        <aside ref={listEdges} className={`${styles.listPane} ${organicScrollTarget}`}>
+          {/* Nothing at all yet: said here on a phone; beside a two-pane list (which stays empty), the
+              detail pane says it. */}
+          {empty && (
+            <EmptyState
+              className={styles.listEmpty}
+              fills
+              icon="chat"
+              seed={23}
+              title={t('emptyTitle')}
+              line={t('empty')}
+            />
+          )}
 
-        {conversations.map((c) => {
-          const otherUid = c.participants.find((p) => p !== user.id) ?? '';
-          const person = people[otherUid];
-          return person ? rowFor(person, c) : null;
-        })}
+          {conversations.map((c) => {
+            const otherUid = c.participants.find((p) => p !== user.id) ?? '';
+            const person = people[otherUid];
+            return person ? rowFor(person, c) : null;
+          })}
 
-        {starters.length > 0 && (
-          <>
-            <p className={styles.startSectionTitle}>{t('startSection')}</p>
-            {starters.map((person) => rowFor(person))}
-          </>
-        )}
-      </aside>
+          {starters.length > 0 && (
+            <>
+              <p className={styles.startSectionTitle}>{t('startSection')}</p>
+              {starters.map((person) => rowFor(person))}
+            </>
+          )}
+        </aside>
+        <OrganicScrollbar targetRef={listRef} seed={53} autoHide />
+      </div>
 
       <div className={styles.vRule} aria-hidden>
         <Divider orientation="vertical" seed={71} amplitude={2} strokeWidth={INK} spacing={0} color="var(--split-pen)" />
