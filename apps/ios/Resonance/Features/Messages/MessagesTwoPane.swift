@@ -122,17 +122,24 @@ private struct EmptyDetailPane: View {
         VStack(spacing: 0) {
             OrganicInlineBar("", backLabel: L10n.Messages.back).backHidden(true)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
-            Group {
-                if noConversations {
-                    OrganicEmptyState(title: L10n.Messages.emptyTitle, message: L10n.Messages.empty, icon: .chat, seed: 23, fills: true)
-                } else {
-                    OrganicEmptyState(message: L10n.Messages.pickOne, icon: .chat, seed: 23, fills: true)
+            // The region is what the pane leaves under its bar, measured on a view that takes exactly that
+            // and laid over it. Measured on the state itself (which is as tall as the region it was given),
+            // it never shrank: a window made shorter (a Mac's, as it opens or under a drag) kept the old
+            // height, the pane stood taller than the window and the header rode up over the tabs.
+            Color.clear
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+                .overlay(alignment: .top) {
+                    Group {
+                        if noConversations {
+                            OrganicEmptyState(title: L10n.Messages.emptyTitle, message: L10n.Messages.empty, icon: .chat, seed: 23, fills: true)
+                        } else {
+                            OrganicEmptyState(message: L10n.Messages.pickOne, icon: .chat, seed: 23, fills: true)
+                        }
+                    }
+                    .environment(\.emptyStateRegion, height)
+                    .padding(.leading, PaneLines.gutter)
                 }
-            }
-            .environment(\.emptyStateRegion, height)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
-            .padding(.leading, PaneLines.gutter)
         }
         .overlay { PaneLines(barHeight: barHeight) }
         .background(Tokens.cream)
