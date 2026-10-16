@@ -1,0 +1,160 @@
+/* The promo's page: the site's faces from the apps' font files, and the
+   kit's pieces at the web's own sizes (StoryCard, TagPill, OrganicButton,
+   SegmentedActionBar, Modal, bubbles). Scenes place them; nothing here moves. */
+
+@font-face { font-family: 'Playfair Display'; src: url('/fonts/PlayfairDisplay.ttf') format('truetype'); font-weight: 400 900; }
+@font-face { font-family: 'DM Sans'; src: url('/fonts/DMSans.ttf') format('truetype'); font-weight: 100 1000; }
+@font-face { font-family: 'Noto Serif TC'; src: url('/fonts/NotoSerifTC.ttf') format('truetype'); font-weight: 200 900; }
+@font-face { font-family: 'Noto Sans TC'; src: url('/fonts/NotoSansTC.ttf') format('truetype'); font-weight: 100 900; }
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background: var(--color-cream);
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+#stage {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background: var(--color-cream);
+}
+
+.abs { position: absolute; }
+/* Each scene is its own stacking context, so nothing in a scene fading out paints over the one fading in. */
+.scene { position: absolute; inset: 0; overflow: hidden; isolation: isolate; }
+.layer { position: absolute; inset: 0; }
+
+/* ── Narration (video sizes) ─────────────────────────────────────── */
+.eyebrow {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 22px 9px 18px;
+  font: 600 19px/1.2 var(--font-body);
+  letter-spacing: 0.06em;
+  color: var(--button-on-tonal);
+}
+.eyebrow > :not(svg.abs) { position: relative; z-index: 1; }
+.narration-title {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 66px;
+  line-height: 1.16;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  white-space: pre-line;
+  text-wrap: balance;
+}
+:lang(zh-TW) .narration-title { letter-spacing: 0.01em; line-height: 1.24; }
+.narration-body {
+  font-family: var(--font-body);
+  font-size: 25px;
+  line-height: 1.7;
+  color: var(--color-text-muted);
+  white-space: pre-line;
+  text-wrap: pretty;
+}
+:lang(zh-TW) .narration-body { letter-spacing: 0.04em; word-break: keep-all; overflow-wrap: anywhere; text-wrap: balance; }
+:lang(zh-TW) .narration-title, :lang(zh-TW) .narration-body { text-spacing-trim: trim-both; }
+
+/* ── Kit pieces (1×) ─────────────────────────────────────────────── */
+.pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.pill-label { position: relative; z-index: 1; transform: translateY(0.04em); }
+
+.avatar { position: relative; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.avatar-label { position: relative; z-index: 1; font-family: var(--font-body); font-weight: 700; color: var(--color-text); line-height: 1; }
+
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+}
+.button > :not(svg.abs) { position: relative; z-index: 1; }
+
+.card { position: relative; }
+.card-content { position: relative; z-index: 2; display: flex; flex-direction: column; gap: 14px; }
+.card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.card-title { font-family: var(--font-heading); font-size: 18px; font-weight: 700; line-height: 1.3; color: var(--color-text); }
+.card-excerpt { font-family: var(--font-body); font-size: 14px; line-height: 1.65; color: var(--color-text-muted); }
+.card-byline { display: flex; align-items: center; gap: 10px; padding-top: 8px; }
+.card-author { font-family: var(--font-body); font-size: 13px; font-weight: 600; color: var(--color-text); }
+.card-read { font-family: var(--font-body); font-size: 12px; color: var(--color-text-muted); }
+
+.segbar { position: relative; display: inline-block; }
+.seg-row { position: relative; z-index: 1; display: flex; height: 100%; }
+.seg {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 48px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.seg-state { grid-area: 1 / 1; display: inline-flex; align-items: center; gap: 6px; padding: 0 28px; }
+
+.sheet { position: relative; }
+.sheet-content { position: relative; z-index: 2; }
+
+.toggle { position: relative; display: inline-block; flex-shrink: 0; }
+
+.bubble { position: relative; display: inline-block; }
+.bubble-words {
+  position: relative;
+  z-index: 1;
+  padding: 9px 14px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--color-text);
+  white-space: pre-wrap;
+}
+
+.tap { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 40; pointer-events: none; }
+.tap-disc, .tap-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+}
+/* A light touch: a pale ring with a faint fill, so the word under a finger stays readable. */
+.tap-disc {
+  width: 40px;
+  height: 40px;
+  background: color-mix(in oklch, var(--color-text) 9%, transparent);
+  border: 2px solid color-mix(in oklch, var(--color-text) 28%, transparent);
+}
+.tap-ring { border: 2px solid var(--color-terracotta); }

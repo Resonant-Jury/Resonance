@@ -23,6 +23,17 @@
   <a href="LICENSE">MIT License</a>
 </p>
 
+<p align="center">
+  <a href="docs/media/resonance-intro.en.mp4">
+    <picture>
+      <source srcset="docs/media/resonance-intro.en.avif" type="image/avif">
+      <img src="docs/media/resonance-intro.en.jpg" width="880" alt="A one-minute tour of Resonance: writing a story card; choosing who can read it, publicly, privately or anonymously; resonating with someone's card by writing one of your own; leaving its author a note; and laying cards out on the thought map">
+    </picture>
+  </a>
+  <br>
+  <sub>A one-minute tour · <a href="docs/media/resonance-intro.en.mp4">MP4, 1080p</a> · <a href="docs/media/resonance-intro.zh-TW.mp4">中文版</a></sub>
+</p>
+
 ---
 
 ## What is Resonance?

@@ -23,6 +23,7 @@ npx tsx scripts/integrity.ts [--emulator]   # read-only check for data the rules
 npm run api:openapi     # regenerate openapi/v1/openapi.json from the Zod contract (a test fails when stale)
 npm run native:editor   # typecheck + build the native apps' editor island (native/editor/dist/editor.html)
 npm run apps:generate   # regenerate what the native apps take from the web (tokens, strings, OpenAPI, editor)
+npx tsx scripts/promo/render.ts [--locale zh-TW|en|all] [--preview] [--stills 12.5,30 --stills-dir <dir>]   # the README's one-minute tour (scripts/promo/page, drawn with src/lib/design and the tokens) → docs/media/resonance-intro.{locale}.mp4 (+ with --preview the README's looping .avif and its .jpg still); needs Chrome (CHROME_PATH) and ffmpeg with libx264 and libsvtav1; the app's own strings come from src/messages, so re-render after renaming one it shows
 ```
 
 Seed the emulators with known test accounts: `npx tsx scripts/seed-emulator.ts`. In a `dev:emulator` browser, sign in from devtools with `await window.__emulatorSignIn(email, password)` (values in the seed script) — that helper exists only in emulator builds.
