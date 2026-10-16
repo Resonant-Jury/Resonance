@@ -163,3 +163,12 @@ license. Apple, the Apple logo and App Store are trademarks of Apple Inc.,
 registered in the U.S. and other countries and regions. Google Play and the
 Google Play logo are trademarks of Google LLC. Each badge is used as its
 owner's marketing guidelines allow: to link to Resonance's own store pages.
+
+## Promo soundtrack (not licensed)
+
+`scripts/promo/score.m4a`, the music of the README's one-minute tour
+(`docs/media/resonance-intro.*.mp4`), was generated with
+[ElevenLabs Music](https://elevenlabs.io/music) under the project owner's paid
+plan, whose commercial licence covers its use in Resonance's own promotion. It is
+not covered by this repository's license: please don't reuse it in your own work
+or in a fork.

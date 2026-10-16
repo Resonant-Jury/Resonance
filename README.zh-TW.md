@@ -31,7 +31,7 @@
     </picture>
   </a>
   <br>
-  <sub>一分鐘認識共振 · <a href="docs/media/resonance-intro.zh-TW.mp4">MP4 影片（1080p）</a> · <a href="docs/media/resonance-intro.en.mp4">English</a></sub>
+  <sub>一分鐘認識共振 · <a href="docs/media/resonance-intro.zh-TW.mp4">MP4 影片，含配樂（1080p）</a> · <a href="docs/media/resonance-intro.en.mp4">English</a></sub>
 </p>
 
 ---

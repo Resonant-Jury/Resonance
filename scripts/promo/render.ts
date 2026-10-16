@@ -4,6 +4,7 @@
  *   npx tsx scripts/promo/render.ts [--locale zh-TW|en|all] [--fps 60] [--workers 4]
  *                                   [--out docs/media] [--from 0] [--to <end>]
  *                                   [--stills 1.5,8,20 [--stills-dir <dir>]] [--preview [--poster-at 4.6]]
+ *                                   [--audio <file> | --silent]
  *
  * The page is a pure function of time (`window.__promo.renderAt(t)`), so every
  * frame is set, screenshotted and piped to ffmpeg — no clock, no dropped
@@ -13,6 +14,9 @@
  * --preview).
  * The workers render consecutive slices into segments of one encoding, which
  * ffmpeg then joins without re-encoding.
+ *
+ * The soundtrack is scripts/promo/score.m4a (66 s, already at -16 LUFS / -1.5 dBTP,
+ * so it is copied into the MP4 as it is); --audio takes another file, --silent none.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
@@ -27,6 +31,7 @@ const PAGE_DIR = join(ROOT, 'scripts/promo/page');
 const WIDTH = 1920;
 const HEIGHT = 1080;
 const LOCALES = ['zh-TW', 'en'] as const;
+const SCORE = join(ROOT, 'scripts/promo/score.m4a');
 type Locale = (typeof LOCALES)[number];
 
 interface Options {
@@ -40,6 +45,8 @@ interface Options {
   stillsDir: string;
   preview: boolean;
   posterAt: number;
+  /** The soundtrack, or null for a silent film. */
+  audio: string | null;
 }
 
 function parseArgs(argv: string[]): Options {
@@ -61,6 +68,7 @@ function parseArgs(argv: string[]): Options {
     stillsDir: resolve(ROOT, get('stills-dir') ?? join(tmpdir(), 'resonance-promo-stills')),
     preview: argv.includes('--preview'),
     posterAt: Number(get('poster-at') ?? 4.6),
+    audio: argv.includes('--silent') ? null : resolve(ROOT, get('audio') ?? SCORE),
   };
 }
 
@@ -352,7 +360,12 @@ async function main() {
       const list = join(tmp, 'segments.txt');
       writeFileSync(list, segments.map((s) => `file '${s}'`).join('\n'));
       const mp4 = join(opts.out, `resonance-intro.${locale}.mp4`);
-      await done(run('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', '-movflags', '+faststart', mp4]));
+      // The joined picture, then the soundtrack laid under it from the same moment (`--from`), both copied.
+      const audio = opts.audio && existsSync(opts.audio)
+        ? ['-ss', String(opts.from), '-i', opts.audio, '-map', '0:v', '-map', '1:a', '-shortest']
+        : [];
+      if (opts.audio && !audio.length) console.warn(`No soundtrack at ${opts.audio}: the film is silent`);
+      await done(run('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', list, ...audio, '-c', 'copy', '-movflags', '+faststart', mp4]));
       console.log(`${mp4} (${(statSync(mp4).size / 1e6).toFixed(1)} MB)`);
 
       if (opts.preview) await preview(mp4, join(opts.out, `resonance-intro.${locale}`), opts.posterAt);

@@ -31,7 +31,7 @@
     </picture>
   </a>
   <br>
-  <sub>A one-minute tour · <a href="docs/media/resonance-intro.en.mp4">MP4, 1080p</a> · <a href="docs/media/resonance-intro.zh-TW.mp4">中文版</a></sub>
+  <sub>A one-minute tour · <a href="docs/media/resonance-intro.en.mp4">MP4 with music, 1080p</a> · <a href="docs/media/resonance-intro.zh-TW.mp4">中文版</a></sub>
 </p>
 
 ---
